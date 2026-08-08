@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0f">
+<title>เข้าสู่ระบบ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0a0a0f; --panel-line:#241f2e;
+    --ember:#c9a24b; --ember-dim:#8a6f34; --blood:#7e1f2b;
+    --text:#e8e3d8; --muted:#8a8598; --danger:#d9736b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Sarabun',system-ui,sans-serif;background:var(--ink);color:var(--text);
+    min-height:100dvh;display:flex;align-items:center;justify-content:center;
+    padding:24px 20px;overflow:hidden;position:relative}
+  body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(90px);opacity:.28;z-index:0;pointer-events:none}
+  body::before{width:340px;height:340px;top:-90px;left:-70px;background:radial-gradient(circle,var(--blood),transparent 70%)}
+  body::after{width:300px;height:300px;bottom:-100px;right:-80px;background:radial-gradient(circle,var(--ember-dim),transparent 70%)}
+  .card{position:relative;z-index:1;width:100%;max-width:380px;
+    background:linear-gradient(180deg,#14131d,#0e0d15);border:1px solid var(--panel-line);
+    border-radius:20px;padding:38px 26px 30px;
+    box-shadow:0 24px 60px -20px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.03)}
+  .sigil{width:66px;height:66px;margin:0 auto 20px;position:relative}
+  .sigil svg{width:100%;height:100%;display:block}
+  .sigil circle,.sigil path,.sigil line{stroke:var(--ember);stroke-width:1.2;fill:none;opacity:.9}
+  .sigil::after{content:"";position:absolute;inset:-14px;border-radius:50%;
+    background:radial-gradient(circle,rgba(201,162,75,.35),transparent 65%);
+    animation:pulse 3.4s ease-in-out infinite;z-index:-1}
+  @keyframes pulse{0%,100%{opacity:.35;transform:scale(.94)}50%{opacity:.75;transform:scale(1.06)}}
+  .title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;text-align:center;
+    letter-spacing:.5px;background:linear-gradient(180deg,#f3ecd8,var(--ember));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+  .subtitle{text-align:center;color:var(--muted);font-size:13px;font-weight:300;margin-bottom:28px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:7px;letter-spacing:.3px}
+  .field input{width:100%;background:#0c0b12;border:1px solid var(--panel-line);border-radius:11px;
+    padding:13px 14px;color:var(--text);font-family:inherit;font-size:15px;transition:border-color .2s,box-shadow .2s}
+  .field input::placeholder{color:#55506a}
+  .field input:focus{outline:none;border-color:var(--ember-dim);box-shadow:0 0 0 3px rgba(201,162,75,.12)}
+  .row{display:flex;align-items:center;justify-content:space-between;margin:6px 0 22px;font-size:12.5px}
+  .remember{display:flex;align-items:center;gap:8px;color:var(--muted);cursor:pointer;user-select:none}
+  .remember input{width:16px;height:16px;accent-color:var(--ember)}
+  .link{color:var(--ember);text-decoration:none;opacity:.85}
+  .link:hover{opacity:1;text-decoration:underline}
+  .btn{width:100%;border:none;border-radius:12px;padding:14px;font-family:'Cormorant Garamond',serif;
+    font-size:19px;font-weight:600;letter-spacing:1px;color:#1a1206;
+    background:linear-gradient(180deg,#e6c874,var(--ember));cursor:pointer;
+    transition:transform .12s,box-shadow .2s,filter .2s;box-shadow:0 8px 24px -8px rgba(201,162,75,.5)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.6;cursor:default}
+  .msg{min-height:18px;text-align:center;font-size:12.5px;margin-top:14px;color:var(--danger)}
+  .msg.ok{color:var(--ember)}
+  .foot{text-align:center;margin-top:22px;font-size:12.5px;color:var(--muted)}
+  @media (prefers-reduced-motion:reduce){.sigil::after{animation:none}}
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="sigil" aria-hidden="true">
+      <svg viewBox="0 0 66 66">
+        <circle cx="33" cy="33" r="30"/><circle cx="33" cy="33" r="20"/>
+        <path d="M33 6 L54 45 L12 45 Z"/><line x1="33" y1="13" x2="33" y2="53"/>
+      </svg>
+    </div>
+    <h1 class="title">เข้าสู่ระบบ</h1>
+    <p class="subtitle">ก้าวข้ามประตูเพื่อเริ่มการเดินทาง</p>
+    <div class="field">
+      <label for="user">ชื่อผู้ใช้ หรืออีเมล</label>
+      <input id="user" type="text" autocomplete="username" placeholder="ชื่อของคุณ" required>
+    </div>
+    <div class="field">
+      <label for="pass">รหัสผ่าน</label>
+      <input id="pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
+    </div>
+    <div class="row">
+      <label class="remember"><input type="checkbox" id="remember"> จดจำฉันไว้</label>
+      <a class="link" href="#" onclick="return false">ลืมรหัสผ่าน?</a>
+    </div>
+    <button class="btn" id="submit">เข้าสู่ระบบ</button>
+    <p class="msg" id="msg"></p>
+    <p class="foot">ยังไม่มีบัญชี? <a class="link" href="#" onclick="return false">สมัครสมาชิก</a></p>
+  </main>
+<script>
+  var userEl = document.getElementById('user');
+  var passEl = document.getElementById('pass');
+  var msgEl  = document.getElementById('msg');
+  var btn    = document.getElementById('submit');
+
+  function show(text, ok){
+    msgEl.textContent = text;
+    msgEl.className = ok ? 'msg ok' : 'msg';
+  }
+
+  async function handleLogin(){
+    var u = userEl.value.trim();
+    var p = passEl.value;
+    if(!u || !p){ show('กรอกชื่อผู้ใช้และรหัสผ่านให้ครบก่อน'); return; }
+
+    btn.disabled = true;
+    show('กำลังตรวจสอบ…', true);
+
+    try{
+      var res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      var data = await res.json();
+
+      if(res.ok && data.ok){
+        try{
+          if(document.getElementById('remember').checked){
+            localStorage.setItem('remember_user', u);
+          }else{
+            localStorage.removeItem('remember_user');
+          }
+        }catch(e){}
+        show('เข้าสู่ระบบสำเร็จ', true);
+        window.location.href = 'home.html';
+      }else{
+        show('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+        btn.disabled = false;
+      }
+    }catch(err){
+      show('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง');
+      btn.disabled = false;
+    }
+  }
+
+  btn.addEventListener('click', handleLogin);
+  passEl.addEventListener('keydown', function(e){ if(e.key==='Enter') handleLogin(); });
+  userEl.addEventListener('keydown', function(e){ if(e.key==='Enter') passEl.focus(); });
+
+  try{
+    var saved = localStorage.getItem('remember_user');
+    if(saved){ userEl.value = saved; document.getElementById('remember').checked = true; }
+  }catch(e){}
+</script>
+</body>
+</html>
