@@ -1,1 +1,64 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0f">
+<title>หน้าหลัก</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Sarabun:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#0a0a0f; --ember:#c9a24b; --text:#e8e3d8; --muted:#8a8598; --panel-line:#241f2e; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Sarabun',system-ui,sans-serif;background:var(--ink);color:var(--text);
+    min-height:100dvh;display:flex;flex-direction:column;
+    visibility:hidden}            /* ซ่อนไว้จนกว่าจะยืนยันสิทธิ์ */
+  header{display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px;border-bottom:1px solid var(--panel-line)}
+  .brand{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--ember)}
+  .who{font-size:12.5px;color:var(--muted)}
+  .logout{background:none;border:1px solid var(--panel-line);color:var(--muted);
+    font-family:inherit;font-size:12.5px;padding:7px 14px;border-radius:9px;cursor:pointer;
+    transition:border-color .2s,color .2s}
+  .logout:hover{border-color:var(--ember);color:var(--ember)}
+  main{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
+  .empty{color:#3a3648;font-size:14px;text-align:center}
+</style>
+</head>
+<body>
+  <header>
+    <span class="brand">หน้าหลัก</span>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="who" id="who"></span>
+      <button class="logout" id="logout">ออกจากระบบ</button>
+    </div>
+  </header>
+  <main>
+    <p class="empty">— หน้าว่าง —</p>
+  </main>
+<script>
+  // ยืนยันสิทธิ์กับเซิร์ฟเวอร์ก่อนแสดงหน้า
+  (async function(){
+    try{
+      var res = await fetch('/api/me');
+      var data = await res.json();
+      if(res.ok && data.ok){
+        document.getElementById('who').textContent = 'สวัสดี, ' + data.user;
+        document.body.style.visibility = 'visible';
+      }else{
+        window.location.replace('login.html');
+      }
+    }catch(e){
+      window.location.replace('login.html');
+    }
+  })();
 
+  document.getElementById('logout').addEventListener('click', async function(){
+    try{ await fetch('/api/logout', { method:'POST' }); }catch(e){}
+    window.location.href = 'login.html';
+  });
+</script>
+</body>
+</html>
