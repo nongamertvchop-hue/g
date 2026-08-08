@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0a0a0f" />
+<title>เข้าสู่ระบบ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Sarabun:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #08070c;
+    --bg-2: #100c18;
+    --card: rgba(20, 16, 28, 0.72);
+    --line: rgba(201, 162, 75, 0.22);
+    --ember: #c9a24b;
+    --ember-soft: #e0c583;
+    --text: #e9e4da;
+    --muted: #8a8296;
+    --danger: #d0736a;
+    --radius: 18px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Sarabun', system-ui, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Atmosphere: deep gradient + drifting embers */
+  .backdrop {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #1b1330 0%, transparent 55%),
+      radial-gradient(90% 60% at 50% 120%, #180f22 0%, transparent 60%),
+      var(--bg);
+  }
+  .backdrop::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.5), transparent),
+                radial-gradient(1px 1px at 70% 60%, rgba(255,255,255,.35), transparent),
+                radial-gradient(1px 1px at 40% 80%, rgba(255,255,255,.3), transparent),
+                radial-gradient(1px 1px at 85% 20%, rgba(255,255,255,.4), transparent),
+                radial-gradient(1px 1px at 10% 65%, rgba(255,255,255,.3), transparent);
+    opacity: .6;
+  }
+
+  .ember {
+    position: fixed; bottom: -10px; z-index: 0;
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--ember-soft);
+    box-shadow: 0 0 8px 2px rgba(224, 197, 131, .6);
+    animation: rise linear infinite;
+    opacity: 0;
+  }
+  @keyframes rise {
+    0%   { transform: translateY(0) scale(1); opacity: 0; }
+    12%  { opacity: .9; }
+    88%  { opacity: .5; }
+    100% { transform: translateY(-105dvh) scale(.4); opacity: 0; }
+  }
+
+  /* Card */
+  .card {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 380px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 34px 26px 30px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+
+  /* Sigil */
+  .sigil {
+    width: 64px; height: 64px; margin: 0 auto 18px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    position: relative;
+  }
+  .sigil::before {
+    content: ""; position: absolute; inset: -6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(201,162,75,.28), transparent 70%);
+    animation: breathe 4s ease-in-out infinite;
+  }
+  .sigil svg { width: 30px; height: 30px; stroke: var(--ember); fill: none; }
+  @keyframes breathe {
+    0%,100% { opacity: .4; transform: scale(.95); }
+    50%     { opacity: 1;  transform: scale(1.08); }
+  }
+
+  h1 {
+    font-family: 'Cinzel', serif;
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.5rem;
+    letter-spacing: .04em;
+    color: var(--ember-soft);
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: .84rem;
+    font-weight: 300;
+    margin: 6px 0 26px;
+  }
+
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block;
+    font-size: .78rem;
+    color: var(--muted);
+    margin-bottom: 7px;
+    letter-spacing: .01em;
+  }
+  .field input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--text);
+    background: rgba(0,0,0,.28);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 11px;
+    padding: 13px 14px;
+    transition: border-color .18s, box-shadow .18s;
+  }
+  .field input::placeholder { color: #5a5464; }
+  .field input:focus {
+    outline: none;
+    border-color: var(--ember);
+    box-shadow: 0 0 0 3px rgba(201,162,75,.16);
+  }
+
+  .pw-wrap { position: relative; }
+  .pw-toggle {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--muted);
+    font-size: .78rem; padding: 8px; cursor: pointer;
+  }
+  .pw-toggle:active { color: var(--ember-soft); }
+
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 4px 0 22px; font-size: .8rem;
+  }
+  .remember { display: flex; align-items: center; gap: 7px; color: var(--muted); cursor: pointer; }
+  .remember input { accent-color: var(--ember); width: 15px; height: 15px; }
+  .link { color: var(--ember); text-decoration: none; }
+  .link:active { color: var(--ember-soft); }
+
+  .btn {
+    width: 100%;
+    font-family: 'Cinzel', serif;
+    font-weight: 500;
+    font-size: 1rem;
+    letter-spacing: .05em;
+    color: #14100a;
+    background: linear-gradient(135deg, var(--ember-soft), var(--ember));
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    cursor: pointer;
+    transition: transform .12s, box-shadow .2s;
+    box-shadow: 0 6px 20px rgba(201,162,75,.28);
+  }
+  .btn:active { transform: translateY(1px) scale(.995); }
+  .btn:disabled { opacity: .55; cursor: default; }
+
+  .msg {
+    text-align: center; font-size: .82rem; margin-top: 16px;
+    min-height: 1.1em; color: var(--danger);
+  }
+  .msg.ok { color: var(--ember-soft); }
+
+  .foot {
+    text-align: center; margin-top: 22px;
+    font-size: .82rem; color: var(--muted);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ember, .sigil::before { animation: none; }
+    .ember { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="backdrop"></div>
+
+  <main class="card">
+    <div class="sigil">
+      <svg viewBox="0 0 24 24" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2 L20 7 V17 L12 22 L4 17 V7 Z" />
+        <circle cx="12" cy="12" r="3.2" />
+      </svg>
+    </div>
+
+    <h1>เข้าสู่ระบบ</h1>
+    <p class="subtitle">ยืนยันตัวตนเพื่อเข้าสู่ประตู</p>
+
+    <div class="field">
+      <label for="user">ชื่อผู้ใช้ หรืออีเมล</label>
+      <input id="user" type="text" autocomplete="username" placeholder="you@example.com" />
+    </div>
+
+    <div class="field">
+      <label for="pass">รหัสผ่าน</label>
+      <div class="pw-wrap">
+        <input id="pass" type="password" autocomplete="current-password" placeholder="••••••••" />
+        <button class="pw-toggle" type="button" id="toggle">แสดง</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label class="remember">
+        <input type="checkbox" id="remember" />
+        จดจำฉันไว้
+      </label>
+      <a class="link" href="#" id="forgot">ลืมรหัสผ่าน?</a>
+    </div>
+
+    <button class="btn" id="submit">เข้าสู่ระบบ</button>
+
+    <p class="msg" id="msg"></p>
+
+    <p class="foot">ยังไม่มีบัญชี? <a class="link" href="#" id="signup">สมัครสมาชิก</a></p>
+  </main>
+
+  <script>
+    // Drifting embers
+    (function () {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const N = 14;
+      for (let i = 0; i < N; i++) {
+        const e = document.createElement('div');
+        e.className = 'ember';
+        e.style.left = Math.random() * 100 + 'vw';
+        e.style.animationDuration = (8 + Math.random() * 8) + 's';
+        e.style.animationDelay = (Math.random() * 10) + 's';
+        const s = 2 + Math.random() * 2;
+        e.style.width = s + 'px';
+        e.style.height = s + 'px';
+        document.body.appendChild(e);
+      }
+    })();
+
+    // Show / hide password
+    const pass = document.getElementById('pass');
+    const toggle = document.getElementById('toggle');
+    toggle.addEventListener('click', () => {
+      const show = pass.type === 'password';
+      pass.type = show ? 'text' : 'password';
+      toggle.textContent = show ? 'ซ่อน' : 'แสดง';
+    });
+
+    // Submit (front-end only — wire up to your backend later)
+    const msg = document.getElementById('msg');
+    const btn = document.getElementById('submit');
+
+    function setMsg(text, ok) {
+      msg.textContent = text;
+      msg.classList.toggle('ok', !!ok);
+    }
+
+    function handleLogin() {
+      const user = document.getElementById('user').value.trim();
+      const pw = pass.value;
+
+      if (!user) { setMsg('กรุณากรอกชื่อผู้ใช้หรืออีเมล'); return; }
+      if (!pw)   { setMsg('กรุณากรอกรหัสผ่าน'); return; }
+
+      btn.disabled = true;
+      setMsg('กำลังยืนยันตัวตน…', true);
+
+      // TODO: แทนที่ส่วนนี้ด้วยการเรียก API จริงของคุณ
+      // fetch('/api/login', { method:'POST', body: JSON.stringify({ user, pw }) })
+      setTimeout(() => {
+        btn.disabled = false;
+        setMsg('ยังไม่ได้เชื่อมระบบหลังบ้าน — ต่อ API ตรงนี้ได้เลย', true);
+      }, 900);
+    }
+
+    btn.addEventListener('click', handleLogin);
+    pass.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLogin(); });
+    document.getElementById('user').addEventListener('keydown', (e) => { if (e.key === 'Enter') pass.focus(); });
+
+    ['forgot', 'signup'].forEach(id => {
+      document.getElementById(id).addEventListener('click', (e) => {
+        e.preventDefault();
+        setMsg('หน้านี้ยังไม่ได้ทำ — เพิ่มลิงก์ปลายทางได้ภายหลัง');
+      });
+    });
+  </script>
+</body>
+</html>
