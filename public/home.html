@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0a0f">
+<link rel="manifest" href="manifest.webmanifest">
 <title>หน้าหลัก</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,8 +14,7 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
   body{font-family:'Sarabun',system-ui,sans-serif;background:var(--ink);color:var(--text);
-    min-height:100dvh;display:flex;flex-direction:column;
-    visibility:hidden}            /* ซ่อนไว้จนกว่าจะยืนยันสิทธิ์ */
+    min-height:100dvh;display:flex;flex-direction:column;visibility:hidden}
   header{display:flex;align-items:center;justify-content:space-between;
     padding:16px 20px;border-bottom:1px solid var(--panel-line)}
   .brand{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--ember)}
@@ -39,26 +39,25 @@
     <p class="empty">— หน้าว่าง —</p>
   </main>
 <script>
-  // ยืนยันสิทธิ์กับเซิร์ฟเวอร์ก่อนแสดงหน้า
-  (async function(){
-    try{
-      var res = await fetch('/api/me');
-      var data = await res.json();
-      if(res.ok && data.ok){
-        document.getElementById('who').textContent = 'สวัสดี, ' + data.user;
-        document.body.style.visibility = 'visible';
-      }else{
-        window.location.replace('login.html');
-      }
-    }catch(e){
-      window.location.replace('login.html');
-    }
-  })();
+  // ยามเฝ้าประตู: ยังไม่ล็อกอิน → เด้งกลับ
+  if(sessionStorage.getItem('auth') !== '1'){
+    window.location.replace('index.html');
+  }else{
+    document.getElementById('who').textContent = 'สวัสดี, ' + (sessionStorage.getItem('auth_user')||'');
+    document.body.style.visibility = 'visible';
+  }
 
-  document.getElementById('logout').addEventListener('click', async function(){
-    try{ await fetch('/api/logout', { method:'POST' }); }catch(e){}
-    window.location.href = 'login.html';
+  document.getElementById('logout').addEventListener('click', function(){
+    sessionStorage.removeItem('auth');
+    sessionStorage.removeItem('auth_user');
+    window.location.href = 'index.html';
   });
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
 </script>
 </body>
 </html>
