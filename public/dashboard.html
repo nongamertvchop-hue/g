@@ -76,10 +76,12 @@
                     <div class="composer-body">
                         <input type="text" id="postTitle" class="post-title-input" placeholder="ใส่ชื่อเรื่อง/บท ถ้าเป็นนิยาย (เว้นว่าง = โพสต์ธรรมดา)">
                         <textarea id="postContent" placeholder="แบ่งปันเรื่องราว หรือเริ่มเขียนนิยายบทใหม่..."></textarea>
+                        <input type="file" id="postFile" accept="image/*,video/*" hidden>
+                        <div id="mediaPreview" class="media-preview" style="display:none"></div>
                         <div id="composerMsg" class="composer-msg"></div>
                         <div class="composer-actions">
                             <div class="composer-tools">
-                                <button class="tool-btn" type="button">🖼️ รูปภาพ</button>
+                                <button class="tool-btn" type="button" id="btnPickMedia" style="display:none">🖼️ รูป/วิดีโอ</button>
                                 <button class="tool-btn" type="button">📖 บทนิยาย</button>
                                 <button class="tool-btn" type="button">😊 อารมณ์</button>
                             </div>
@@ -225,12 +227,25 @@
             <section id="view-clips" class="view" style="display:none">
                 <button class="back-btn back-to-menu">← กลับเมนู</button>
                 <h2 class="page-title">อัปคลิป</h2>
-                <div class="clips-placeholder">
-                    <div class="clips-icon">🎬</div>
-                    <h3>หน้าอัปโหลดคลิป</h3>
-                    <p>ส่วนนี้กำลังเตรียมระบบเก็บวิดีโอ (Cloudflare R2/Stream) เพื่อให้อัปโหลดและเล่นคลิปได้จริง — เปิดใช้งานในอัปเดตถัดไป</p>
-                    <button class="btn-post" type="button" disabled>เลือกวิดีโอ (เร็ว ๆ นี้)</button>
+
+                <div class="write-card" id="clipUploader" style="display:none">
+                    <h3 class="side-title">อัปโหลดคลิปใหม่</h3>
+                    <input type="text" id="clipCaption" class="post-title-input" placeholder="คำบรรยายคลิป (ไม่บังคับ)">
+                    <input type="file" id="clipFile" accept="video/*" hidden>
+                    <button class="tool-btn" type="button" id="btnPickClip">🎬 เลือกวิดีโอ (สูงสุด 100 MB)</button>
+                    <div id="clipPreview" class="media-preview" style="display:none"></div>
+                    <div id="clipMsg" class="composer-msg"></div>
+                    <button class="btn-post" type="button" id="btnUploadClip">อัปโหลดคลิป</button>
                 </div>
+
+                <div class="clips-placeholder" id="clipDisabled" style="display:none">
+                    <div class="clips-icon">🎬</div>
+                    <h3>ยังไม่ได้เปิดใช้งานที่เก็บไฟล์</h3>
+                    <p>ระบบอัปโหลดต้องเปิด Cloudflare R2 ในหน้า Dashboard ก่อน (ใช้งานฟรี) เมื่อเปิดแล้วหน้านี้จะพร้อมใช้งานทันที</p>
+                </div>
+
+                <h3 class="side-title">คลิปทั้งหมด</h3>
+                <div id="clipList" class="clip-grid"></div>
             </section>
         </main>
 

@@ -123,6 +123,7 @@
         setupTabs();
         setupMenu();
         setupComposer();
+        setupMedia();
         setupWrite();
         setupChatControls();
         setupSidebarNav();
@@ -152,6 +153,7 @@
         if (name === "chat") loadFriends();
         if (name === "write") loadMyNovels();
         if (name === "profile") loadProfile();
+        if (name === "clips") loadClips();
     }
 
     function setupTabs() {
@@ -259,6 +261,26 @@
         return card;
     }
 
+    function mediaNode(post) {
+        if (!post.media_key) return null;
+        const src = "/media/" + post.media_key;
+        if (post.media_type === "video") {
+            const v = document.createElement("video");
+            v.className = "post-media";
+            v.src = src;
+            v.controls = true;
+            v.preload = "metadata";
+            v.playsInline = true;
+            return v;
+        }
+        const img = document.createElement("img");
+        img.className = "post-media";
+        img.src = src;
+        img.alt = "รูปภาพประกอบโพสต์";
+        img.loading = "lazy";
+        return img;
+    }
+
     function renderPostBody(body, post) {
         body.innerHTML = "";
         if (post.type === "novel") {
@@ -269,9 +291,11 @@
             info.appendChild(el("p", "novel-excerpt", post.content));
             block.appendChild(info);
             body.appendChild(block);
-        } else {
+        } else if (post.content) {
             body.appendChild(el("p", "post-text", post.content));
         }
+        const media = mediaNode(post);
+        if (media) body.appendChild(media);
     }
 
     function startEditPost(card, post) {
@@ -360,31 +384,201 @@
         res.data.posts.forEach(p => list.appendChild(renderPost(p)));
     }
 
+    let pickedFile = null;
+
+    function showPreview(container, file) {
+        container.innerHTML = "";
+        container.style.display = "";
+        const url = URL.createObjectURL(file);
+        let node;
+        if (file.type.indexOf("video/") === 0) {
+            node = document.createElement("video");
+            node.src = url;
+            node.controls = true;
+            node.playsInline = true;
+        } else {
+            node = document.createElement("img");
+            node.src = url;
+            node.alt = "ตัวอย่างไฟล์ที่เลือก";
+        }
+        node.className = "preview-media";
+        const remove = el("button", "preview-remove", "✕ เอาออก");
+        remove.addEventListener("click", function () {
+            pickedFile = null;
+            container.style.display = "none";
+            container.innerHTML = "";
+            URL.revokeObjectURL(url);
+        });
+        const info = el("div", "preview-info", file.name + " · " + (file.size / 1048576).toFixed(1) + " MB");
+        container.appendChild(node);
+        container.appendChild(info);
+        container.appendChild(remove);
+    }
+
+    async function uploadFile(file) {
+        const fd = new FormData();
+        fd.append("token", token);
+        fd.append("file", file);
+        const res = await fetch("/api/media/upload", { method: "POST", body: fd });
+        let data = {};
+        try { data = await res.json(); } catch (e) { data = {}; }
+        return { ok: res.ok, data };
+    }
+
+    async function setupMedia() {
+        const status = await api("/api/media/status");
+        const enabled = status.ok && status.data.enabled;
+
+        // กล่องโพสต์
+        const pickBtn = document.getElementById("btnPickMedia");
+        const fileInput = document.getElementById("postFile");
+        const preview = document.getElementById("mediaPreview");
+        if (enabled && pickBtn) {
+            pickBtn.style.display = "";
+            pickBtn.addEventListener("click", () => fileInput.click());
+            fileInput.addEventListener("change", function () {
+                const f = fileInput.files[0];
+                fileInput.value = "";
+                if (!f) return;
+                const isVid = f.type.indexOf("video/") === 0;
+                const limit = isVid ? 100 : 10;
+                if (f.size > limit * 1048576) {
+                    toast("ไฟล์ใหญ่เกินไป (จำกัด " + limit + " MB)", true);
+                    return;
+                }
+                pickedFile = f;
+                showPreview(preview, f);
+            });
+        }
+
+        // หน้าอัปคลิป
+        const uploader = document.getElementById("clipUploader");
+        const disabled = document.getElementById("clipDisabled");
+        if (enabled) {
+            if (uploader) uploader.style.display = "";
+            setupClipUploader();
+        } else {
+            if (disabled) disabled.style.display = "";
+        }
+    }
+
+    function setupClipUploader() {
+        const pick = document.getElementById("btnPickClip");
+        const input = document.getElementById("clipFile");
+        const preview = document.getElementById("clipPreview");
+        const msg = document.getElementById("clipMsg");
+        const upload = document.getElementById("btnUploadClip");
+        let clipFile = null;
+
+        pick.addEventListener("click", () => input.click());
+        input.addEventListener("change", function () {
+            const f = input.files[0];
+            input.value = "";
+            if (!f) return;
+            if (f.size > 100 * 1048576) { msg.textContent = "ไฟล์ใหญ่เกินไป (จำกัด 100 MB)"; return; }
+            clipFile = f;
+            msg.textContent = "";
+            showPreview(preview, f);
+        });
+
+        upload.addEventListener("click", async function () {
+            if (!clipFile) { msg.className = "composer-msg"; msg.textContent = "กรุณาเลือกวิดีโอก่อน"; return; }
+            upload.disabled = true;
+            msg.className = "composer-msg";
+            msg.textContent = "กำลังอัปโหลด... กรุณารอสักครู่";
+            const up = await uploadFile(clipFile);
+            if (!up.ok || !up.data.ok) {
+                msg.textContent = up.data.error || "อัปโหลดไม่สำเร็จ";
+                upload.disabled = false;
+                return;
+            }
+            const caption = document.getElementById("clipCaption").value.trim();
+            const res = await api("/api/posts", {
+                method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token, content: caption, media_key: up.data.key, media_type: "video" }),
+            });
+            upload.disabled = false;
+            if (res.ok && res.data.ok) {
+                clipFile = null;
+                document.getElementById("clipCaption").value = "";
+                preview.style.display = "none";
+                preview.innerHTML = "";
+                msg.className = "composer-msg ok";
+                msg.textContent = "อัปโหลดคลิปสำเร็จ!";
+                toast("อัปโหลดคลิปสำเร็จ");
+                loadClips();
+            } else {
+                msg.textContent = res.data.error || "บันทึกโพสต์ไม่สำเร็จ";
+            }
+        });
+    }
+
+    async function loadClips() {
+        const list = document.getElementById("clipList");
+        if (!list) return;
+        list.innerHTML = '<div class="feed-loading">กำลังโหลดคลิป...</div>';
+        const res = await api("/api/posts?token=" + encodeURIComponent(token));
+        const clips = (res.data.posts || []).filter(p => p.media_type === "video");
+        list.innerHTML = "";
+        if (clips.length === 0) {
+            list.innerHTML = '<div class="feed-loading">ยังไม่มีคลิป</div>';
+            return;
+        }
+        clips.forEach(function (p) {
+            const card = el("div", "clip-card");
+            const v = mediaNode(p);
+            if (v) card.appendChild(v);
+            card.appendChild(el("div", "clip-caption", p.content || "ไม่มีคำบรรยาย"));
+            card.appendChild(el("div", "clip-author", "โดย " + p.author));
+            list.appendChild(card);
+        });
+    }
+
     function setupComposer() {
         const btn = document.getElementById("btnPost");
         const titleEl = document.getElementById("postTitle");
         const contentEl = document.getElementById("postContent");
         const msg = document.getElementById("composerMsg");
+        const preview = document.getElementById("mediaPreview");
 
         btn.addEventListener("click", async function () {
             const content = contentEl.value.trim();
             const title = titleEl.value.trim();
+            msg.className = "composer-msg";
             msg.textContent = "";
-            if (!content) { msg.textContent = "กรุณากรอกเนื้อหาก่อนโพสต์"; return; }
+            if (!content && !pickedFile) { msg.textContent = "กรุณากรอกเนื้อหา หรือแนบไฟล์ก่อนโพสต์"; return; }
+
             btn.disabled = true;
+            let mediaKey = null, mediaType = null;
+            if (pickedFile) {
+                msg.textContent = "กำลังอัปโหลดไฟล์...";
+                const up = await uploadFile(pickedFile);
+                if (!up.ok || !up.data.ok) {
+                    msg.textContent = up.data.error || "อัปโหลดไฟล์ไม่สำเร็จ";
+                    btn.disabled = false;
+                    return;
+                }
+                mediaKey = up.data.key;
+                mediaType = up.data.media_type;
+                msg.textContent = "";
+            }
+
             const res = await api("/api/posts", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ token, title, content }),
+                body: JSON.stringify({ token, title, content, media_key: mediaKey, media_type: mediaType }),
             });
             btn.disabled = false;
             if (res.ok && res.data.ok) {
                 contentEl.value = "";
                 titleEl.value = "";
+                pickedFile = null;
+                if (preview) { preview.style.display = "none"; preview.innerHTML = ""; }
                 const list = document.getElementById("postList");
                 const empty = list.querySelector(".feed-loading");
                 if (empty) list.innerHTML = "";
                 list.insertBefore(renderPost(res.data.post), list.firstChild);
+                toast("โพสต์เรียบร้อย");
             } else {
                 msg.textContent = res.data.error || "โพสต์ไม่สำเร็จ";
             }

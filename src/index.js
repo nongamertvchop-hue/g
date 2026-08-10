@@ -15,6 +15,14 @@ export default {
                 return json({ error: "เกิดข้อผิดพลาดในระบบ", detail: String(err) }, 500);
             }
         }
+        // เสิร์ฟไฟล์สื่อจาก R2
+        if (url.pathname.startsWith("/media/")) {
+            try {
+                return await serveMedia(env, url);
+            } catch (err) {
+                return new Response("media error", { status: 500 });
+            }
+        }
         return env.ASSETS.fetch(request);
     },
 };
@@ -51,10 +59,75 @@ async function handleApi(request, env, url) {
     if (p === "/api/messages" && m === "GET") return listMessages(env, url);
     if (p === "/api/messages" && m === "POST") return sendMessage(request, env);
 
+    // media (R2)
+    if (p === "/api/media/status" && m === "GET") return json({ ok: true, enabled: !!env.MEDIA });
+    if (p === "/api/media/upload" && m === "POST") return uploadMedia(request, env);
+
     // realtime chat (WebSocket)
     if (p === "/api/ws") return handleWs(request, env, url);
 
     return json({ error: "ไม่พบเส้นทาง API" }, 404);
+}
+
+// ===== Media (R2) =====
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const MAX_IMAGE = 10 * 1024 * 1024;   // 10 MB
+const MAX_VIDEO = 100 * 1024 * 1024;  // 100 MB
+
+function extFor(type) {
+    const map = {
+        "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp",
+        "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov",
+    };
+    return map[type] || "bin";
+}
+
+async function uploadMedia(request, env) {
+    if (!env.MEDIA) return json({ error: "ระบบอัปโหลดยังไม่พร้อมใช้งาน" }, 503);
+
+    let form;
+    try { form = await request.formData(); } catch (e) { return json({ error: "รูปแบบข้อมูลไม่ถูกต้อง" }, 400); }
+
+    const token = form.get("token") || "";
+    const username = await userFromToken(env, String(token));
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบก่อนอัปโหลด" }, 401);
+
+    const file = form.get("file");
+    if (!file || typeof file === "string") return json({ error: "ไม่พบไฟล์" }, 400);
+
+    const type = file.type || "";
+    const isImage = IMAGE_TYPES.includes(type);
+    const isVideo = VIDEO_TYPES.includes(type);
+    if (!isImage && !isVideo)
+        return json({ error: "รองรับเฉพาะรูปภาพ (JPG PNG GIF WEBP) และวิดีโอ (MP4 WEBM MOV)" }, 415);
+
+    const limit = isImage ? MAX_IMAGE : MAX_VIDEO;
+    if (file.size > limit)
+        return json({ error: "ไฟล์ใหญ่เกินไป (จำกัด " + (isImage ? "10 MB" : "100 MB") + ")" }, 413);
+
+    const key = (isVideo ? "video/" : "image/") + crypto.randomUUID() + "." + extFor(type);
+    await env.MEDIA.put(key, file.stream(), {
+        httpMetadata: { contentType: type, cacheControl: "public, max-age=31536000, immutable" },
+        customMetadata: { uploader: username },
+    });
+
+    return json({ ok: true, key, url: "/media/" + key, media_type: isVideo ? "video" : "image" });
+}
+
+async function serveMedia(env, url) {
+    if (!env.MEDIA) return new Response("media not enabled", { status: 503 });
+    const key = decodeURIComponent(url.pathname.replace("/media/", ""));
+    if (!key) return new Response("not found", { status: 404 });
+
+    const obj = await env.MEDIA.get(key);
+    if (!obj) return new Response("not found", { status: 404 });
+
+    const headers = new Headers();
+    obj.writeHttpMetadata(headers);
+    headers.set("etag", obj.httpEtag);
+    headers.set("cache-control", "public, max-age=31536000, immutable");
+    return new Response(obj.body, { headers });
 }
 
 // deterministic room id for a pair of users
@@ -163,7 +236,7 @@ async function userFromToken(env, token) {
 async function listPosts(request, env, url) {
     const viewer = await userFromToken(env, url.searchParams.get("token") || "");
     const { results } = await env.DB.prepare(
-        "SELECT p.id, p.author, p.type, p.title, p.content, p.created_at, " +
+        "SELECT p.id, p.author, p.type, p.title, p.content, p.media_key, p.media_type, p.created_at, " +
         "(SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count, " +
         "CASE WHEN ? IS NULL THEN 0 ELSE " +
         "  (SELECT COUNT(*) FROM likes l2 WHERE l2.post_id = p.id AND l2.username = ?) END AS liked " +
@@ -210,16 +283,20 @@ async function createPost(request, env) {
 
     const content = (b.content || "").trim();
     const title = (b.title || "").trim() || null;
-    if (!content) return json({ error: "กรุณากรอกเนื้อหา" }, 400);
+    const mediaKey = (b.media_key || "").trim() || null;
+    const mediaType = (b.media_type || "").trim() || null;
+    if (!content && !mediaKey) return json({ error: "กรุณากรอกเนื้อหา หรือแนบไฟล์" }, 400);
     if (content.length > 20000) return json({ error: "เนื้อหายาวเกินไป" }, 400);
     const type = title ? "novel" : "text";
 
     const res = await env.DB.prepare(
-        "INSERT INTO posts (author, type, title, content) VALUES (?, ?, ?, ?)"
-    ).bind(username, type, title, content).run();
+        "INSERT INTO posts (author, type, title, content, media_key, media_type) VALUES (?, ?, ?, ?, ?, ?)"
+    ).bind(username, type, title, content, mediaKey, mediaType).run();
     const post = await env.DB.prepare(
-        "SELECT id, author, type, title, content, created_at FROM posts WHERE id = ?"
+        "SELECT id, author, type, title, content, media_key, media_type, created_at FROM posts WHERE id = ?"
     ).bind(res.meta.last_row_id).first();
+    post.like_count = 0;
+    post.liked = 0;
     return json({ ok: true, post });
 }
 
@@ -251,11 +328,15 @@ async function deletePost(request, env) {
     const username = await userFromToken(env, b.token || "");
     if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
 
-    const post = await env.DB.prepare("SELECT author FROM posts WHERE id = ?").bind(b.id).first();
+    const post = await env.DB.prepare("SELECT author, media_key FROM posts WHERE id = ?").bind(b.id).first();
     if (!post) return json({ error: "ไม่พบโพสต์" }, 404);
     if (post.author !== username && !isAdmin(username))
         return json({ error: "คุณไม่มีสิทธิ์ลบโพสต์นี้" }, 403);
 
+    // ลบไฟล์สื่อใน R2 ด้วย ไม่ให้เหลือขยะ
+    if (post.media_key && env.MEDIA) {
+        try { await env.MEDIA.delete(post.media_key); } catch (e) { /* ignore */ }
+    }
     await env.DB.prepare("DELETE FROM likes WHERE post_id = ?").bind(b.id).run();
     await env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(b.id).run();
     return json({ ok: true });
