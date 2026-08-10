@@ -38,6 +38,49 @@
         return author === me.username || me.role === "admin";
     }
 
+    // กล่องยืนยันในหน้าเว็บเอง — ไม่ใช้ window.confirm เพราะบางเบราว์เซอร์บล็อก
+    function confirmDialog(message, confirmLabel) {
+        return new Promise(function (resolve) {
+            const overlay = el("div", "modal-overlay");
+            const box = el("div", "modal-box");
+            box.appendChild(el("p", "modal-text", message));
+            const row = el("div", "modal-actions");
+            const yes = el("button", "modal-btn danger", confirmLabel || "ลบ");
+            const no = el("button", "modal-btn", "ยกเลิก");
+            row.appendChild(no);
+            row.appendChild(yes);
+            box.appendChild(row);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+
+            function done(val) {
+                document.removeEventListener("keydown", onKey);
+                overlay.remove();
+                resolve(val);
+            }
+            function onKey(e) {
+                if (e.key === "Escape") done(false);
+                if (e.key === "Enter") done(true);
+            }
+            yes.addEventListener("click", () => done(true));
+            no.addEventListener("click", () => done(false));
+            overlay.addEventListener("click", (e) => { if (e.target === overlay) done(false); });
+            document.addEventListener("keydown", onKey);
+            yes.focus();
+        });
+    }
+
+    // แจ้งเตือนแบบ toast — ไม่ใช้ alert
+    function toast(message, isError) {
+        const t = el("div", "toast" + (isError ? " error" : ""), message);
+        document.body.appendChild(t);
+        setTimeout(function () { t.classList.add("show"); }, 10);
+        setTimeout(function () {
+            t.classList.remove("show");
+            setTimeout(function () { t.remove(); }, 300);
+        }, 2600);
+    }
+
     function initial(name) {
         return (name || "?").charAt(0).toUpperCase();
     }
@@ -160,9 +203,50 @@
         card.appendChild(body);
 
         const footer = el("div", "post-footer");
-        ["❤️ ถูกใจ", "💬 คอมเมนต์", "🔖 บันทึก", "↗️ แชร์"].forEach(function (t) {
+
+        // ปุ่มถูกใจ (ทำงานจริง)
+        const likeBtn = el("button", "react-btn like-btn");
+        let liked = !!post.liked;
+        let count = post.like_count || 0;
+        function paintLike() {
+            likeBtn.textContent = (liked ? "❤️" : "🤍") + " " + count;
+            likeBtn.classList.toggle("liked", liked);
+        }
+        paintLike();
+        likeBtn.addEventListener("click", async function () {
+            if (likeBtn.disabled) return;
+            likeBtn.disabled = true;
+            // อัปเดตหน้าจอทันที แล้วค่อยยืนยันกับเซิร์ฟเวอร์
+            const prevLiked = liked, prevCount = count;
+            liked = !liked;
+            count += liked ? 1 : -1;
+            if (count < 0) count = 0;
+            paintLike();
+            likeBtn.classList.add("pop");
+            setTimeout(() => likeBtn.classList.remove("pop"), 300);
+
+            const res = await api("/api/posts/like", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token, id: post.id }),
+            });
+            if (res.ok && res.data.ok) {
+                liked = res.data.liked;
+                count = res.data.like_count;
+            } else {
+                liked = prevLiked;
+                count = prevCount;
+                toast(res.data.error || "กดถูกใจไม่สำเร็จ", true);
+            }
+            paintLike();
+            likeBtn.disabled = false;
+        });
+        footer.appendChild(likeBtn);
+
+        ["💬 คอมเมนต์", "🔖 บันทึก", "↗️ แชร์"].forEach(function (t) {
             footer.appendChild(el("button", "react-btn", t));
         });
+
         if (canManage(post.author)) {
             const edit = el("button", "react-btn manage", "✏️ แก้ไข");
             const del = el("button", "react-btn manage danger", "🗑️ ลบ");
@@ -225,8 +309,12 @@
             });
             save.disabled = false;
             if (res.ok && res.data.ok) {
-                const newCard = renderPost(res.data.post);
-                card.replaceWith(newCard);
+                // คงจำนวนถูกใจเดิมไว้ (API แก้ไขไม่ได้ส่งค่านี้กลับมา)
+                const updated = res.data.post;
+                updated.like_count = post.like_count || 0;
+                updated.liked = post.liked || 0;
+                card.replaceWith(renderPost(updated));
+                toast("บันทึกการแก้ไขแล้ว");
             } else {
                 msg.textContent = res.data.error || "แก้ไขไม่สำเร็จ";
             }
@@ -234,23 +322,32 @@
     }
 
     async function deletePost(card, post) {
-        if (!window.confirm("ต้องการลบโพสต์นี้หรือไม่?")) return;
+        const yes = await confirmDialog("ต้องการลบโพสต์นี้หรือไม่? การลบไม่สามารถย้อนกลับได้", "ลบโพสต์");
+        if (!yes) return;
         const res = await api("/api/posts/delete", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ token, id: post.id }),
         });
         if (res.ok && res.data.ok) {
-            card.remove();
+            card.style.opacity = "0";
+            setTimeout(function () {
+                card.remove();
+                const list = document.getElementById("postList");
+                if (list && list.children.length === 0) {
+                    list.innerHTML = '<div class="feed-loading">ยังไม่มีโพสต์ มาเริ่มเขียนกันเลย!</div>';
+                }
+            }, 200);
+            toast("ลบโพสต์แล้ว");
         } else {
-            alert(res.data.error || "ลบไม่สำเร็จ");
+            toast(res.data.error || "ลบไม่สำเร็จ", true);
         }
     }
 
     async function loadPosts() {
         const list = document.getElementById("postList");
         list.innerHTML = '<div class="feed-loading">กำลังโหลดโพสต์...</div>';
-        const res = await api("/api/posts");
+        const res = await api("/api/posts?token=" + encodeURIComponent(token));
         list.innerHTML = "";
         if (!res.ok || !res.data.posts) {
             list.innerHTML = '<div class="feed-loading">โหลดโพสต์ไม่สำเร็จ</div>';
@@ -361,12 +458,14 @@
         if (canManage(novel.author)) {
             const del = el("button", "react-btn manage danger", "🗑️ ลบนิยาย");
             del.addEventListener("click", async function () {
-                if (!window.confirm("ลบนิยายทั้งเรื่อง (รวมทุกตอน)?")) return;
+                const yes = await confirmDialog("ลบนิยายทั้งเรื่อง รวมทุกตอน? การลบไม่สามารถย้อนกลับได้", "ลบนิยาย");
+                if (!yes) return;
                 const r = await api("/api/novels/delete", {
                     method: "POST", headers: { "content-type": "application/json" },
                     body: JSON.stringify({ token, id: novel.id }),
                 });
-                if (r.ok && r.data.ok) loadNovels(); else alert(r.data.error || "ลบไม่สำเร็จ");
+                if (r.ok && r.data.ok) { toast("ลบนิยายแล้ว"); loadNovels(); }
+                else toast(r.data.error || "ลบไม่สำเร็จ", true);
             });
             meta.appendChild(del);
         }

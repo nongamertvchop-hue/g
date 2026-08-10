@@ -30,10 +30,11 @@ async function handleApi(request, env, url) {
     if (p === "/api/me" && m === "GET") return me(request, env, url);
 
     // posts
-    if (p === "/api/posts" && m === "GET") return listPosts(env);
+    if (p === "/api/posts" && m === "GET") return listPosts(request, env, url);
     if (p === "/api/posts" && m === "POST") return createPost(request, env);
     if (p === "/api/posts/update" && m === "POST") return updatePost(request, env);
     if (p === "/api/posts/delete" && m === "POST") return deletePost(request, env);
+    if (p === "/api/posts/like" && m === "POST") return toggleLike(request, env);
 
     // novels
     if (p === "/api/novels" && m === "GET") return listNovels(env);
@@ -159,11 +160,47 @@ async function userFromToken(env, token) {
 }
 
 // ===== Posts =====
-async function listPosts(env) {
+async function listPosts(request, env, url) {
+    const viewer = await userFromToken(env, url.searchParams.get("token") || "");
     const { results } = await env.DB.prepare(
-        "SELECT id, author, type, title, content, created_at FROM posts ORDER BY id DESC LIMIT 100"
-    ).all();
+        "SELECT p.id, p.author, p.type, p.title, p.content, p.created_at, " +
+        "(SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count, " +
+        "CASE WHEN ? IS NULL THEN 0 ELSE " +
+        "  (SELECT COUNT(*) FROM likes l2 WHERE l2.post_id = p.id AND l2.username = ?) END AS liked " +
+        "FROM posts p ORDER BY p.id DESC LIMIT 100"
+    ).bind(viewer, viewer).all();
     return json({ ok: true, posts: results || [] });
+}
+
+async function toggleLike(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบก่อนกดถูกใจ" }, 401);
+
+    const postId = parseInt(b.id, 10);
+    if (isNaN(postId)) return json({ error: "รหัสโพสต์ไม่ถูกต้อง" }, 400);
+
+    const post = await env.DB.prepare("SELECT id FROM posts WHERE id = ?").bind(postId).first();
+    if (!post) return json({ error: "ไม่พบโพสต์" }, 404);
+
+    const existing = await env.DB.prepare(
+        "SELECT id FROM likes WHERE post_id = ? AND username = ?"
+    ).bind(postId, username).first();
+
+    let liked;
+    if (existing) {
+        await env.DB.prepare("DELETE FROM likes WHERE post_id = ? AND username = ?")
+            .bind(postId, username).run();
+        liked = false;
+    } else {
+        await env.DB.prepare("INSERT INTO likes (post_id, username) VALUES (?, ?)")
+            .bind(postId, username).run();
+        liked = true;
+    }
+
+    const row = await env.DB.prepare("SELECT COUNT(*) AS c FROM likes WHERE post_id = ?")
+        .bind(postId).first();
+    return json({ ok: true, liked, like_count: row ? row.c : 0 });
 }
 
 async function createPost(request, env) {
@@ -219,6 +256,7 @@ async function deletePost(request, env) {
     if (post.author !== username && !isAdmin(username))
         return json({ error: "คุณไม่มีสิทธิ์ลบโพสต์นี้" }, 403);
 
+    await env.DB.prepare("DELETE FROM likes WHERE post_id = ?").bind(b.id).run();
     await env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(b.id).run();
     return json({ ok: true });
 }
