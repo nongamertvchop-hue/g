@@ -23,14 +23,20 @@
             <span class="brand-name">เรือนอักษร</span>
         </div>
 
-        <div class="search-bar">
-            <span class="search-icon">🔍</span>
-            <input type="text" placeholder="ค้นหานิยาย ผู้เขียน หรือโพสต์...">
+        <div class="header-center">
+            <div class="search-bar">
+                <span class="search-icon">🔍</span>
+                <input type="text" placeholder="ค้นหานิยาย ผู้เขียน หรือโพสต์...">
+            </div>
+            <!-- แท็บ ใต้ช่องค้นหา -->
+            <div class="tab-bar">
+                <button class="tab-btn active" id="tabFeed">แท็บ</button>
+                <button class="tab-btn" id="tabMenu">แท็บแท็บ</button>
+            </div>
         </div>
 
         <div class="header-actions">
             <button class="icon-btn" title="แจ้งเตือน">🔔</button>
-            <button class="icon-btn" title="ข้อความ">💬</button>
             <div class="avatar" id="myAvatar" title="">A</div>
             <a href="index.html" class="btn-logout" id="logoutBtn">ออกจากระบบ</a>
         </div>
@@ -41,12 +47,11 @@
         <!-- Left sidebar -->
         <aside class="sidebar-left">
             <nav class="side-card">
-                <a href="#" class="nav-item active">🏛️ หน้าแรก</a>
-                <a href="#" class="nav-item">📖 นิยายของฉัน</a>
-                <a href="#" class="nav-item">✍️ เขียนเรื่องใหม่</a>
-                <a href="#" class="nav-item">🔖 ที่บันทึกไว้</a>
-                <a href="#" class="nav-item">💬 ห้องแชท</a>
-                <a href="#" class="nav-item">👤 โปรไฟล์</a>
+                <a href="#" class="nav-item active" id="navHome">🏛️ หน้าแรก</a>
+                <a href="#" class="nav-item" id="navNovels">📖 ชั้นหนังสือ</a>
+                <a href="#" class="nav-item" id="navWrite">✍️ เขียนนิยาย</a>
+                <a href="#" class="nav-item" id="navChat">💬 ห้องแชท</a>
+                <a href="#" class="nav-item" id="navProfile">👤 โปรไฟล์</a>
             </nav>
 
             <div class="side-card">
@@ -62,30 +67,171 @@
             </div>
         </aside>
 
-        <!-- Main feed -->
+        <!-- Main content (views) -->
         <main class="feed">
-            <!-- Composer -->
-            <div class="composer">
-                <div class="avatar" id="composerAvatar">A</div>
-                <div class="composer-body">
-                    <input type="text" id="postTitle" class="post-title-input" placeholder="ใส่ชื่อเรื่อง/บท ถ้าเป็นนิยาย (เว้นว่าง = โพสต์ธรรมดา)">
-                    <textarea id="postContent" placeholder="แบ่งปันเรื่องราว หรือเริ่มเขียนนิยายบทใหม่..."></textarea>
-                    <div id="composerMsg" class="composer-msg"></div>
-                    <div class="composer-actions">
-                        <div class="composer-tools">
-                            <button class="tool-btn" type="button">🖼️ รูปภาพ</button>
-                            <button class="tool-btn" type="button">📖 บทนิยาย</button>
-                            <button class="tool-btn" type="button">😊 อารมณ์</button>
+            <!-- ===== แท็บ: ฟีดโพสต์ ===== -->
+            <section id="view-feed" class="view">
+                <div class="composer">
+                    <div class="avatar" id="composerAvatar">A</div>
+                    <div class="composer-body">
+                        <input type="text" id="postTitle" class="post-title-input" placeholder="ใส่ชื่อเรื่อง/บท ถ้าเป็นนิยาย (เว้นว่าง = โพสต์ธรรมดา)">
+                        <textarea id="postContent" placeholder="แบ่งปันเรื่องราว หรือเริ่มเขียนนิยายบทใหม่..."></textarea>
+                        <div id="composerMsg" class="composer-msg"></div>
+                        <div class="composer-actions">
+                            <div class="composer-tools">
+                                <button class="tool-btn" type="button">🖼️ รูปภาพ</button>
+                                <button class="tool-btn" type="button">📖 บทนิยาย</button>
+                                <button class="tool-btn" type="button">😊 อารมณ์</button>
+                            </div>
+                            <button class="btn-post" id="btnPost" type="button">โพสต์</button>
                         </div>
-                        <button class="btn-post" id="btnPost" type="button">โพสต์</button>
                     </div>
                 </div>
-            </div>
+                <div id="postList" class="post-list">
+                    <div class="feed-loading">กำลังโหลดโพสต์...</div>
+                </div>
+            </section>
 
-            <!-- โพสต์ทั้งหมด (โหลดจากฐานข้อมูล) -->
-            <div id="postList" class="post-list">
-                <div class="feed-loading">กำลังโหลดโพสต์...</div>
-            </div>
+            <!-- ===== แท็บแท็บ: เมนู 6 ปุ่ม ===== -->
+            <section id="view-menu" class="view" style="display:none">
+                <div class="menu-grid">
+                    <button class="menu-card" data-goto="feed">
+                        <span class="menu-icon">📝</span>
+                        <span class="menu-label">โพสต์ข้อความ</span>
+                        <span class="menu-desc">แบ่งปันเรื่องราว โพสต์ได้ทุกคน</span>
+                    </button>
+                    <button class="menu-card" data-goto="novels">
+                        <span class="menu-icon">📚</span>
+                        <span class="menu-label">อ่านนิยาย</span>
+                        <span class="menu-desc">ชั้นหนังสือ ปก ชื่อเรื่อง ผู้เขียน</span>
+                    </button>
+                    <button class="menu-card" data-goto="chat">
+                        <span class="menu-icon">💬</span>
+                        <span class="menu-label">แชท</span>
+                        <span class="menu-desc">คุยกับเพื่อน เพิ่มด้วยชื่อ + ไอดี</span>
+                    </button>
+                    <button class="menu-card" data-goto="write">
+                        <span class="menu-icon">✍️</span>
+                        <span class="menu-label">เขียนนิยาย</span>
+                        <span class="menu-desc">สร้างเรื่อง เพิ่มตอนของนักเขียน</span>
+                    </button>
+                    <button class="menu-card" data-goto="profile">
+                        <span class="menu-icon">👤</span>
+                        <span class="menu-label">โปรไฟล์</span>
+                        <span class="menu-desc">ข้อมูลและผลงานของคุณ</span>
+                    </button>
+                    <button class="menu-card" data-goto="clips">
+                        <span class="menu-icon">🎬</span>
+                        <span class="menu-label">อัปคลิป</span>
+                        <span class="menu-desc">อัปโหลดวิดีโอสั้น</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- ===== นิยาย ===== -->
+            <section id="view-novels" class="view" style="display:none">
+                <button class="back-btn back-to-menu">← กลับเมนู</button>
+                <h2 class="page-title">ชั้นหนังสือ</h2>
+                <div id="novelGrid" class="novel-grid"></div>
+                <div id="novelDetail" class="novel-detail" style="display:none"></div>
+            </section>
+
+            <!-- ===== แชท ===== -->
+            <section id="view-chat" class="view" style="display:none">
+                <button class="back-btn back-to-menu">← กลับเมนู</button>
+                <h2 class="page-title">ห้องแชท</h2>
+                <div class="chat-layout">
+                    <div class="chat-side">
+                        <div class="my-id-box">ไอดีของคุณ: <b id="myIdLabel">—</b> <span class="my-id-hint">(ให้เพื่อนใช้เพิ่มคุณ)</span></div>
+                        <div class="add-friend">
+                            <input type="text" id="friendName" placeholder="ชื่อผู้ใช้เพื่อน">
+                            <input type="text" id="friendId" placeholder="ไอดี (ตัวเลข)" inputmode="numeric">
+                            <button id="addFriendBtn">เพิ่มเพื่อน</button>
+                        </div>
+                        <div id="addFriendMsg" class="composer-msg"></div>
+                        <h3 class="side-title">เพื่อนของคุณ</h3>
+                        <div id="friendList" class="friend-list"></div>
+                    </div>
+                    <div class="chat-main">
+                        <div id="chatBox" class="chat-conv" style="display:none">
+                            <div class="chat-conv-head" id="chatTitle">เลือกเพื่อนเพื่อเริ่มคุย</div>
+                            <div id="chatMessages" class="chat-window"></div>
+                            <div class="chat-input">
+                                <input type="text" id="chatInput" placeholder="พิมพ์ข้อความ...">
+                                <button id="chatSendBtn">ส่ง</button>
+                            </div>
+                        </div>
+                        <div id="chatEmpty" class="feed-loading">เลือกเพื่อนจากด้านซ้ายเพื่อเริ่มสนทนา</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== เขียนนิยาย ===== -->
+            <section id="view-write" class="view" style="display:none">
+                <button class="back-btn back-to-menu">← กลับเมนู</button>
+                <h2 class="page-title">เขียนนิยาย</h2>
+
+                <div class="write-card">
+                    <h3 class="side-title">สร้างเรื่องใหม่</h3>
+                    <input type="text" id="nvTitle" class="post-title-input" placeholder="ชื่อเรื่อง">
+                    <textarea id="nvSynopsis" class="write-textarea" placeholder="เรื่องย่อ..."></textarea>
+                    <div class="cover-label">เลือกปก</div>
+                    <div id="coverPick" class="cover-pick">
+                        <button type="button" class="cover-swatch cover-1 selected" data-cover="cover-1"></button>
+                        <button type="button" class="cover-swatch cover-2" data-cover="cover-2"></button>
+                        <button type="button" class="cover-swatch cover-3" data-cover="cover-3"></button>
+                        <button type="button" class="cover-swatch cover-4" data-cover="cover-4"></button>
+                        <button type="button" class="cover-swatch cover-5" data-cover="cover-5"></button>
+                        <button type="button" class="cover-swatch cover-6" data-cover="cover-6"></button>
+                    </div>
+                    <div id="nvCreateMsg" class="composer-msg"></div>
+                    <button id="nvCreateBtn" class="btn-post" type="button">สร้างนิยาย</button>
+                </div>
+
+                <div class="write-card">
+                    <h3 class="side-title">เพิ่มตอนใหม่</h3>
+                    <div id="myNovelList" class="my-novel-list"></div>
+                    <select id="chNovelSelect" class="write-select"></select>
+                    <input type="text" id="chTitle" class="post-title-input" placeholder="ชื่อตอน เช่น บทที่ 1 · จุดเริ่มต้น">
+                    <textarea id="chContent" class="write-textarea tall" placeholder="เขียนเนื้อเรื่องของตอนนี้..."></textarea>
+                    <div id="chAddMsg" class="composer-msg"></div>
+                    <button id="chAddBtn" class="btn-post" type="button">เพิ่มตอน</button>
+                </div>
+            </section>
+
+            <!-- ===== โปรไฟล์ ===== -->
+            <section id="view-profile" class="view" style="display:none">
+                <button class="back-btn back-to-menu">← กลับเมนู</button>
+                <h2 class="page-title">โปรไฟล์</h2>
+                <div class="profile-card">
+                    <div class="avatar profile-avatar" id="pfAvatar">A</div>
+                    <div class="profile-info">
+                        <h3 class="profile-name" id="pfName">—</h3>
+                        <div class="profile-meta">
+                            <span>ไอดี: <b id="pfId">—</b></span>
+                            <span>สถานะ: <b id="pfRole">—</b></span>
+                        </div>
+                        <div class="profile-stats">
+                            <span><b id="pfPostCount">0</b> โพสต์</span>
+                            <span><b id="pfNovelCount">0</b> นิยาย</span>
+                        </div>
+                    </div>
+                </div>
+                <h3 class="side-title">โพสต์ของฉัน</h3>
+                <div id="pfPostList" class="post-list"></div>
+            </section>
+
+            <!-- ===== อัปคลิป ===== -->
+            <section id="view-clips" class="view" style="display:none">
+                <button class="back-btn back-to-menu">← กลับเมนู</button>
+                <h2 class="page-title">อัปคลิป</h2>
+                <div class="clips-placeholder">
+                    <div class="clips-icon">🎬</div>
+                    <h3>หน้าอัปโหลดคลิป</h3>
+                    <p>ส่วนนี้กำลังเตรียมระบบเก็บวิดีโอ (Cloudflare R2/Stream) เพื่อให้อัปโหลดและเล่นคลิปได้จริง — เปิดใช้งานในอัปเดตถัดไป</p>
+                    <button class="btn-post" type="button" disabled>เลือกวิดีโอ (เร็ว ๆ นี้)</button>
+                </div>
+            </section>
         </main>
 
         <!-- Right sidebar -->
@@ -94,43 +240,16 @@
                 <h3 class="side-title">นิยายมาแรง</h3>
                 <a href="#" class="trend-item">
                     <span class="trend-rank">1</span>
-                    <div>
-                        <span class="trend-title">ดาบเทวะกับราตรีนิรันดร์</span>
-                        <span class="trend-meta">แฟนตาซี · 1.2M อ่าน</span>
-                    </div>
+                    <div><span class="trend-title">ดาบเทวะกับราตรีนิรันดร์</span><span class="trend-meta">แฟนตาซี · 1.2M อ่าน</span></div>
                 </a>
                 <a href="#" class="trend-item">
                     <span class="trend-rank">2</span>
-                    <div>
-                        <span class="trend-title">บันทึกรักเมืองหมอก</span>
-                        <span class="trend-meta">โรแมนซ์ · 984K อ่าน</span>
-                    </div>
+                    <div><span class="trend-title">บันทึกรักเมืองหมอก</span><span class="trend-meta">โรแมนซ์ · 984K อ่าน</span></div>
                 </a>
                 <a href="#" class="trend-item">
                     <span class="trend-rank">3</span>
-                    <div>
-                        <span class="trend-title">เสียงกระซิบใต้พื้นพิภพ</span>
-                        <span class="trend-meta">สยองขวัญ · 736K อ่าน</span>
-                    </div>
+                    <div><span class="trend-title">เสียงกระซิบใต้พื้นพิภพ</span><span class="trend-meta">สยองขวัญ · 736K อ่าน</span></div>
                 </a>
-            </div>
-
-            <div class="side-card chat-panel">
-                <h3 class="side-title">แชท</h3>
-                <div class="chat-friends">
-                    <div class="friend online"><div class="avatar sm">ณ</div><span>ณิชา</span></div>
-                    <div class="friend online"><div class="avatar sm">ก</div><span>กันต์</span></div>
-                    <div class="friend"><div class="avatar sm">ม</div><span>มณี</span></div>
-                </div>
-                <div class="chat-window" id="chatWindow">
-                    <div class="chat-msg them">อ่านบทใหม่ยัง? สนุกมากเลย</div>
-                    <div class="chat-msg me">อ่านแล้ว! รอบทต่อไปไม่ไหวแล้ว 😆</div>
-                    <div class="chat-msg them">เดี๋ยวคืนนี้ลงต่อนะ 🕯️</div>
-                </div>
-                <div class="chat-input">
-                    <input type="text" id="chatText" placeholder="พิมพ์ข้อความ...">
-                    <button id="chatSend">ส่ง</button>
-                </div>
             </div>
         </aside>
     </div>
@@ -139,210 +258,6 @@
         © 2026 เรือนอักษร · nongamertvchop · tryth5556 — สงวนลิขสิทธิ์
     </footer>
 
-    <script>
-        const token = localStorage.getItem("authToken");
-        const username = localStorage.getItem("username") || "";
-
-        // ยามเฝ้าประตู: ไม่มี token = ยังไม่ล็อกอิน
-        if (!token) {
-            window.location.href = "index.html";
-        }
-
-        document.addEventListener("DOMContentLoaded", function () {
-            if (!token) return;
-
-            const firstChar = username ? username.charAt(0).toUpperCase() : "?";
-            document.getElementById("myAvatar").textContent = firstChar;
-            document.getElementById("myAvatar").title = username;
-            document.getElementById("composerAvatar").textContent = firstChar;
-
-            // ออกจากระบบ
-            document.getElementById("logoutBtn").addEventListener("click", async function (e) {
-                e.preventDefault();
-                try {
-                    await fetch("/api/logout", {
-                        method: "POST",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ token }),
-                    });
-                } catch (err) { /* ignore */ }
-                localStorage.removeItem("authToken");
-                localStorage.removeItem("username");
-                window.location.href = "index.html";
-            });
-
-            // เมนูนำทาง active
-            document.querySelectorAll(".nav-item").forEach(function (item) {
-                item.addEventListener("click", function (e) {
-                    e.preventDefault();
-                    document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-                    item.classList.add("active");
-                });
-            });
-
-            setupComposer();
-            loadPosts();
-            setupChat();
-        });
-
-        function timeAgo(iso) {
-            // created_at เป็นเวลา UTC จาก D1 เช่น "2026-08-10 04:51:36"
-            const t = Date.parse(iso.replace(" ", "T") + "Z");
-            if (isNaN(t)) return "";
-            const diff = Math.floor((Date.now() - t) / 1000);
-            if (diff < 60) return "เมื่อสักครู่";
-            if (diff < 3600) return Math.floor(diff / 60) + " นาทีที่แล้ว";
-            if (diff < 86400) return Math.floor(diff / 3600) + " ชั่วโมงที่แล้ว";
-            return Math.floor(diff / 86400) + " วันที่แล้ว";
-        }
-
-        function renderPost(post) {
-            const card = document.createElement("article");
-            card.className = "post-card";
-
-            const head = document.createElement("div");
-            head.className = "post-head";
-
-            const av = document.createElement("div");
-            av.className = "avatar";
-            av.textContent = (post.author || "?").charAt(0).toUpperCase();
-
-            const meta = document.createElement("div");
-            meta.className = "post-meta";
-            const author = document.createElement("span");
-            author.className = "post-author";
-            author.textContent = post.author;
-            const time = document.createElement("span");
-            time.className = "post-time";
-            time.textContent = (post.type === "novel" ? "ลงบทใหม่ · " : "") + timeAgo(post.created_at);
-            meta.appendChild(author);
-            meta.appendChild(time);
-
-            head.appendChild(av);
-            head.appendChild(meta);
-
-            if (post.type === "novel") {
-                const badge = document.createElement("span");
-                badge.className = "post-badge";
-                badge.textContent = "นิยาย";
-                head.appendChild(badge);
-            }
-            card.appendChild(head);
-
-            if (post.type === "novel") {
-                const block = document.createElement("div");
-                block.className = "novel-block";
-                const cover = document.createElement("div");
-                cover.className = "novel-cover cover-1";
-                const info = document.createElement("div");
-                info.className = "novel-info";
-                const title = document.createElement("h2");
-                title.className = "novel-title";
-                title.textContent = post.title || "ไม่มีชื่อเรื่อง";
-                const excerpt = document.createElement("p");
-                excerpt.className = "novel-excerpt";
-                excerpt.textContent = post.content;
-                info.appendChild(title);
-                info.appendChild(excerpt);
-                block.appendChild(cover);
-                block.appendChild(info);
-                card.appendChild(block);
-            } else {
-                const text = document.createElement("p");
-                text.className = "post-text";
-                text.textContent = post.content;
-                card.appendChild(text);
-            }
-
-            const footer = document.createElement("div");
-            footer.className = "post-footer";
-            ["❤️ ถูกใจ", "💬 คอมเมนต์", "🔖 บันทึก", "↗️ แชร์"].forEach(function (label) {
-                const b = document.createElement("button");
-                b.className = "react-btn";
-                b.textContent = label;
-                footer.appendChild(b);
-            });
-            card.appendChild(footer);
-
-            return card;
-        }
-
-        async function loadPosts() {
-            const list = document.getElementById("postList");
-            try {
-                const res = await fetch("/api/posts");
-                const data = await res.json();
-                list.innerHTML = "";
-                if (!data.posts || data.posts.length === 0) {
-                    list.innerHTML = '<div class="feed-loading">ยังไม่มีโพสต์ มาเริ่มเขียนกันเลย!</div>';
-                    return;
-                }
-                data.posts.forEach(function (p) { list.appendChild(renderPost(p)); });
-            } catch (err) {
-                list.innerHTML = '<div class="feed-loading">โหลดโพสต์ไม่สำเร็จ</div>';
-            }
-        }
-
-        function setupComposer() {
-            const btn = document.getElementById("btnPost");
-            const titleEl = document.getElementById("postTitle");
-            const contentEl = document.getElementById("postContent");
-            const msg = document.getElementById("composerMsg");
-
-            btn.addEventListener("click", async function () {
-                const content = contentEl.value.trim();
-                const title = titleEl.value.trim();
-                msg.textContent = "";
-
-                if (!content) {
-                    msg.textContent = "กรุณากรอกเนื้อหาก่อนโพสต์";
-                    return;
-                }
-
-                btn.disabled = true;
-                try {
-                    const res = await fetch("/api/posts", {
-                        method: "POST",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ token, title, content }),
-                    });
-                    const data = await res.json();
-                    if (res.ok && data.ok) {
-                        contentEl.value = "";
-                        titleEl.value = "";
-                        const list = document.getElementById("postList");
-                        const empty = list.querySelector(".feed-loading");
-                        if (empty) list.innerHTML = "";
-                        list.insertBefore(renderPost(data.post), list.firstChild);
-                    } else {
-                        msg.textContent = data.error || "โพสต์ไม่สำเร็จ";
-                    }
-                } catch (err) {
-                    msg.textContent = "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้";
-                } finally {
-                    btn.disabled = false;
-                }
-            });
-        }
-
-        // แชท (เดโม — ยังไม่บันทึกถาวร)
-        function setupChat() {
-            const chatWindow = document.getElementById("chatWindow");
-            const chatText = document.getElementById("chatText");
-            const chatSend = document.getElementById("chatSend");
-            function send() {
-                const val = chatText.value.trim();
-                if (!val) return;
-                const m = document.createElement("div");
-                m.className = "chat-msg me";
-                m.textContent = val;
-                chatWindow.appendChild(m);
-                chatText.value = "";
-                chatWindow.scrollTop = chatWindow.scrollHeight;
-            }
-            chatSend.addEventListener("click", send);
-            chatText.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-        }
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>

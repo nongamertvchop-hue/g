@@ -1094,6 +1094,324 @@ body::after {
     padding-bottom: 0;
 }
 
+/* ===== Header center: search + tabs ===== */
+.header-center {
+    flex: 1;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 auto;
+}
+
+.header-center .search-bar { width: 100%; max-width: none; }
+
+.tab-bar { display: flex; gap: 8px; }
+
+.tab-btn {
+    flex: 1;
+    padding: 8px 14px;
+    background: rgba(10, 10, 15, 0.5);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--ink-dim);
+    font-family: var(--font-serif);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.tab-btn:hover { color: var(--ink); border-color: var(--gold-deep); }
+
+.tab-btn.active {
+    color: #1a1408;
+    background: linear-gradient(135deg, var(--gold-soft), var(--gold-deep));
+    border-color: transparent;
+}
+
+/* ===== Views ===== */
+.view { display: flex; flex-direction: column; gap: 20px; }
+
+.page-title {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 28px;
+    color: var(--gold);
+}
+
+.back-btn {
+    align-self: flex-start;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 16px;
+    color: var(--ink-dim);
+    font-family: var(--font-body);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.back-btn:hover { color: var(--gold-soft); border-color: var(--gold-deep); }
+
+/* ===== Menu (6 ปุ่ม) ===== */
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.menu-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+    padding: 28px 16px;
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.25s, box-shadow 0.3s;
+    box-shadow: inset 0 1px 0 rgba(232, 227, 216, 0.05);
+}
+
+.menu-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--gold-deep);
+    box-shadow: 0 16px 34px -18px rgba(201, 162, 75, 0.4);
+}
+
+.menu-icon { font-size: 38px; }
+.menu-label { font-family: var(--font-serif); font-size: 22px; font-weight: 600; color: var(--ink); }
+.menu-desc { font-size: 12px; color: var(--ink-dim); font-weight: 300; }
+
+/* ===== Novel covers (6 แบบ) ===== */
+.cover-2 { background: radial-gradient(circle at 50% 25%, rgba(126,31,43,0.5), transparent 60%), linear-gradient(165deg,#2a1420,#100b12); }
+.cover-3 { background: radial-gradient(circle at 50% 25%, rgba(75,110,140,0.45), transparent 60%), linear-gradient(165deg,#16222e,#0b1016); }
+.cover-4 { background: radial-gradient(circle at 50% 25%, rgba(90,140,90,0.4), transparent 60%), linear-gradient(165deg,#16281c,#0b120d); }
+.cover-5 { background: radial-gradient(circle at 50% 25%, rgba(150,110,60,0.5), transparent 60%), linear-gradient(165deg,#2a2214,#14100b); }
+.cover-6 { background: radial-gradient(circle at 50% 25%, rgba(120,80,150,0.45), transparent 60%), linear-gradient(165deg,#241a2e,#100b16); }
+
+/* ===== Novel grid ===== */
+.novel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 18px;
+}
+
+.novel-card {
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.25s, box-shadow 0.3s;
+}
+
+.novel-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--gold-deep);
+    box-shadow: 0 16px 34px -18px rgba(0, 0, 0, 0.7);
+}
+
+.novel-card-cover {
+    height: 180px;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    padding: 8px;
+    border-bottom: 1px solid var(--line);
+}
+
+.novel-card-badge {
+    font-size: 11px;
+    color: var(--ink);
+    background: rgba(10, 10, 15, 0.7);
+    padding: 3px 9px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+}
+
+.novel-card-info { padding: 12px 14px 16px; }
+.novel-card-title { font-family: var(--font-serif); font-size: 20px; font-weight: 600; color: var(--ink); line-height: 1.2; margin-bottom: 6px; }
+.novel-card-synopsis { font-size: 13px; color: var(--ink-dim); font-weight: 300; line-height: 1.5; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.novel-card-author { font-size: 12px; color: var(--gold-soft); }
+
+/* ===== Novel detail ===== */
+.novel-detail { display: flex; flex-direction: column; gap: 18px; }
+.novel-detail-head { display: flex; gap: 20px; }
+.novel-detail-cover {
+    width: 150px; height: 210px; flex-shrink: 0; border-radius: 12px;
+    border: 1px solid rgba(201, 162, 75, 0.25);
+    box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.8);
+}
+.novel-detail-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.novel-detail-title { font-family: var(--font-serif); font-size: 32px; font-weight: 600; color: var(--ink); line-height: 1.15; }
+.novel-detail-author { font-size: 14px; color: var(--gold-soft); }
+.novel-detail-synopsis { font-size: 15px; color: var(--ink-dim); font-weight: 300; line-height: 1.7; }
+
+.chapter-area {
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.chapter-item {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(10, 10, 15, 0.4);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    font-family: var(--font-body);
+}
+.chapter-item:hover { border-color: var(--gold-deep); background: rgba(201, 162, 75, 0.06); }
+.chapter-no { color: var(--gold-soft); font-size: 13px; flex-shrink: 0; }
+.chapter-name { color: var(--ink); font-size: 15px; }
+
+.chapter-read-title { font-family: var(--font-serif); font-size: 24px; color: var(--gold); margin: 6px 0 4px; }
+.chapter-read-content p { color: var(--ink); font-size: 16px; line-height: 1.9; font-weight: 300; margin-bottom: 12px; }
+
+/* ===== Chat ===== */
+.chat-layout { display: grid; grid-template-columns: 260px 1fr; gap: 18px; align-items: start; }
+.chat-side {
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+}
+.my-id-box { font-size: 13px; color: var(--ink-dim); background: rgba(201,162,75,0.08); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.my-id-box b { color: var(--gold-soft); }
+.my-id-hint { color: var(--ink-faint); font-size: 11px; }
+.add-friend { display: flex; flex-direction: column; gap: 8px; }
+.add-friend input {
+    background: rgba(10,10,15,0.6); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px; color: var(--ink); font-family: var(--font-body); font-size: 13px; outline: none;
+}
+.add-friend input:focus { border-color: var(--gold-deep); }
+.add-friend input::placeholder { color: var(--ink-faint); }
+.add-friend button {
+    background: linear-gradient(135deg, var(--gold-soft), var(--gold-deep)); color: #1a1408;
+    border: none; border-radius: 10px; padding: 9px; font-family: var(--font-serif);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.friend-list { display: flex; flex-direction: column; gap: 6px; }
+.friend-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    background: rgba(10,10,15,0.4); border: 1px solid var(--line); border-radius: 10px;
+    cursor: pointer; text-align: left; transition: all 0.2s; font-family: var(--font-body);
+}
+.friend-row:hover, .friend-row.active { border-color: var(--gold-deep); background: rgba(201,162,75,0.08); }
+.friend-row-info { display: flex; flex-direction: column; }
+.friend-row-name { color: var(--ink); font-size: 14px; font-weight: 500; }
+.friend-row-id { color: var(--ink-faint); font-size: 11px; }
+
+.chat-main {
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-height: 320px;
+}
+.chat-conv { display: flex; flex-direction: column; gap: 12px; }
+.chat-conv-head { font-family: var(--font-serif); font-size: 20px; color: var(--gold); padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.chat-conv .chat-window { max-height: 360px; min-height: 240px; flex: 1; margin-bottom: 0; }
+
+/* ===== Write ===== */
+.write-card {
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+}
+.write-textarea {
+    width: 100%; min-height: 90px; resize: vertical;
+    background: rgba(10,10,15,0.5); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; color: var(--ink); font-family: var(--font-body); font-size: 15px; outline: none;
+    transition: border-color 0.3s;
+}
+.write-textarea.tall { min-height: 200px; }
+.write-textarea:focus { border-color: var(--gold-deep); }
+.write-textarea::placeholder { color: var(--ink-faint); }
+.write-select {
+    background: rgba(10,10,15,0.6); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 14px; color: var(--ink); font-family: var(--font-body); font-size: 14px; outline: none;
+}
+.cover-label { font-size: 13px; color: var(--ink-dim); }
+.cover-pick { display: flex; gap: 10px; flex-wrap: wrap; }
+.cover-swatch {
+    width: 46px; height: 64px; border-radius: 8px; border: 1px solid var(--line);
+    cursor: pointer; padding: 0; transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+}
+.cover-swatch:hover { transform: translateY(-2px); }
+.cover-swatch.selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,162,75,0.4); }
+.my-novel-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.my-novel-chip {
+    display: flex; flex-direction: column; padding: 6px 12px;
+    background: rgba(10,10,15,0.4); border: 1px solid var(--line); border-radius: 10px;
+}
+.my-novel-chip-title { color: var(--ink); font-size: 13px; }
+.my-novel-chip-meta { color: var(--gold-soft); font-size: 11px; }
+
+/* ===== Profile ===== */
+.profile-card {
+    display: flex; align-items: center; gap: 20px;
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 24px;
+}
+.profile-avatar { width: 76px; height: 76px; font-size: 34px; }
+.profile-info { display: flex; flex-direction: column; gap: 6px; }
+.profile-name { font-family: var(--font-serif); font-size: 28px; color: var(--ink); }
+.profile-meta { display: flex; gap: 18px; font-size: 13px; color: var(--ink-dim); flex-wrap: wrap; }
+.profile-meta b { color: var(--gold-soft); }
+.profile-stats { display: flex; gap: 18px; font-size: 14px; color: var(--ink-dim); }
+.profile-stats b { color: var(--ink); font-size: 18px; font-family: var(--font-serif); }
+
+/* ===== Clips placeholder ===== */
+.clips-placeholder {
+    text-align: center; padding: 50px 24px;
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px dashed var(--line); border-radius: var(--radius);
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.clips-icon { font-size: 52px; }
+.clips-placeholder h3 { font-family: var(--font-serif); font-size: 24px; color: var(--ink); }
+.clips-placeholder p { color: var(--ink-dim); font-size: 14px; font-weight: 300; max-width: 440px; line-height: 1.6; }
+.clips-placeholder .btn-post { width: auto; opacity: 0.5; cursor: not-allowed; }
+
+/* ===== Edit box / manage ===== */
+.edit-box { display: flex; flex-direction: column; gap: 10px; }
+.edit-textarea {
+    width: 100%; min-height: 90px; resize: vertical;
+    background: rgba(10,10,15,0.5); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; color: var(--ink); font-family: var(--font-body); font-size: 15px; outline: none;
+}
+.edit-textarea:focus { border-color: var(--gold-deep); }
+.edit-actions { display: flex; gap: 10px; }
+.edit-actions .btn-post, .edit-actions .tool-btn { width: auto; }
+.react-btn.manage { color: var(--gold-soft); }
+.react-btn.manage.danger { color: #d97b7b; }
+.react-btn.manage:hover { background: rgba(201,162,75,0.1); }
+.react-btn.manage.danger:hover { background: rgba(126,31,43,0.15); }
+.composer-msg.ok { color: #7fc98a; }
+
+/* ===== Responsive (app pages) ===== */
+@media (max-width: 900px) {
+    .menu-grid { grid-template-columns: repeat(2, 1fr); }
+    .chat-layout { grid-template-columns: 1fr; }
+    .novel-detail-head { flex-direction: column; }
+    .novel-detail-cover { width: 130px; height: 182px; }
+}
+
+@media (max-width: 520px) {
+    .menu-grid { grid-template-columns: 1fr; }
+}
+
 /* ปิดอนิเมชันให้คนที่แพ้การเคลื่อนไหว */
 @media (prefers-reduced-motion: reduce) {
     *,

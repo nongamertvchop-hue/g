@@ -113,6 +113,11 @@ function setupRegister() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+    // ถ้าล็อกอินค้างไว้แล้ว → ไปหน้าหลัก (แท็บ) ทันที
+    if (document.getElementById("loginForm") && localStorage.getItem("authToken")) {
+        window.location.href = "dashboard.html";
+        return;
+    }
     setupPasswordToggles();
     setupLogin();
     setupRegister();
