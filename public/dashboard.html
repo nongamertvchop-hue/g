@@ -31,7 +31,7 @@
         <div class="header-actions">
             <button class="icon-btn" title="แจ้งเตือน">🔔</button>
             <button class="icon-btn" title="ข้อความ">💬</button>
-            <div class="avatar" title="adminth">A</div>
+            <div class="avatar" id="myAvatar" title="">A</div>
             <a href="index.html" class="btn-logout" id="logoutBtn">ออกจากระบบ</a>
         </div>
     </header>
@@ -66,90 +66,30 @@
         <main class="feed">
             <!-- Composer -->
             <div class="composer">
-                <div class="avatar">A</div>
+                <div class="avatar" id="composerAvatar">A</div>
                 <div class="composer-body">
-                    <textarea placeholder="แบ่งปันเรื่องราว หรือเริ่มเขียนนิยายบทใหม่..."></textarea>
+                    <input type="text" id="postTitle" class="post-title-input" placeholder="ใส่ชื่อเรื่อง/บท ถ้าเป็นนิยาย (เว้นว่าง = โพสต์ธรรมดา)">
+                    <textarea id="postContent" placeholder="แบ่งปันเรื่องราว หรือเริ่มเขียนนิยายบทใหม่..."></textarea>
+                    <div id="composerMsg" class="composer-msg"></div>
                     <div class="composer-actions">
                         <div class="composer-tools">
-                            <button class="tool-btn">🖼️ รูปภาพ</button>
-                            <button class="tool-btn">📖 บทนิยาย</button>
-                            <button class="tool-btn">😊 อารมณ์</button>
+                            <button class="tool-btn" type="button">🖼️ รูปภาพ</button>
+                            <button class="tool-btn" type="button">📖 บทนิยาย</button>
+                            <button class="tool-btn" type="button">😊 อารมณ์</button>
                         </div>
-                        <button class="btn-post">โพสต์</button>
+                        <button class="btn-post" id="btnPost" type="button">โพสต์</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Novel chapter post -->
-            <article class="post-card">
-                <div class="post-head">
-                    <div class="avatar">ณ</div>
-                    <div class="post-meta">
-                        <span class="post-author">ณิชา นักเล่าเรื่อง</span>
-                        <span class="post-time">ลงบทใหม่ · 2 ชั่วโมงที่แล้ว</span>
-                    </div>
-                    <span class="post-badge">นิยาย</span>
-                </div>
-                <div class="novel-block">
-                    <div class="novel-cover cover-1">
-                        <span class="cover-genre">แฟนตาซี</span>
-                    </div>
-                    <div class="novel-info">
-                        <h2 class="novel-title">คำสาปแห่งหอคอยเงามืด</h2>
-                        <p class="novel-chapter">บทที่ 12 · แสงเทียนดวงสุดท้าย</p>
-                        <p class="novel-excerpt">เสียงลมหวีดผ่านช่องหินเก่าแก่ ราวกับเสียงกระซิบของผู้ที่จากไปแล้ว เอลาราก้าวขึ้นบันไดวนช้า ๆ มือกุมเทียนที่เหลือเพียงเปลวสุดท้าย...</p>
-                        <a href="#" class="novel-read">อ่านต่อ →</a>
-                    </div>
-                </div>
-                <div class="post-footer">
-                    <button class="react-btn">❤️ 248</button>
-                    <button class="react-btn">💬 36</button>
-                    <button class="react-btn">🔖 บันทึก</button>
-                    <button class="react-btn">↗️ แชร์</button>
-                </div>
-            </article>
-
-            <!-- Text + image post -->
-            <article class="post-card">
-                <div class="post-head">
-                    <div class="avatar">ก</div>
-                    <div class="post-meta">
-                        <span class="post-author">กันต์ นักวาด</span>
-                        <span class="post-time">5 ชั่วโมงที่แล้ว</span>
-                    </div>
-                </div>
-                <p class="post-text">วาดภาพประกอบให้ฉากปราสาทในบทที่ 8 เสร็จแล้วครับ ใครตามอ่านอยู่บ้าง มาดูบรรยากาศกัน 🕯️</p>
-                <div class="post-image img-1"></div>
-                <div class="post-footer">
-                    <button class="react-btn">❤️ 512</button>
-                    <button class="react-btn">💬 74</button>
-                    <button class="react-btn">🔖 บันทึก</button>
-                    <button class="react-btn">↗️ แชร์</button>
-                </div>
-            </article>
-
-            <!-- Text post -->
-            <article class="post-card">
-                <div class="post-head">
-                    <div class="avatar">ม</div>
-                    <div class="post-meta">
-                        <span class="post-author">มณีรัตน์</span>
-                        <span class="post-time">เมื่อวานนี้</span>
-                    </div>
-                </div>
-                <p class="post-text">เขียนนิยายเรื่องแรกจบไปหนึ่งภาคแล้ว! ขอบคุณทุกกำลังใจนะคะ ภาคสองจะเข้มข้นกว่าเดิม เตรียมใจไว้ได้เลย ✨📖</p>
-                <div class="post-footer">
-                    <button class="react-btn">❤️ 189</button>
-                    <button class="react-btn">💬 22</button>
-                    <button class="react-btn">🔖 บันทึก</button>
-                    <button class="react-btn">↗️ แชร์</button>
-                </div>
-            </article>
+            <!-- โพสต์ทั้งหมด (โหลดจากฐานข้อมูล) -->
+            <div id="postList" class="post-list">
+                <div class="feed-loading">กำลังโหลดโพสต์...</div>
+            </div>
         </main>
 
         <!-- Right sidebar -->
         <aside class="sidebar-right">
-            <!-- Trending novels -->
             <div class="side-card">
                 <h3 class="side-title">นิยายมาแรง</h3>
                 <a href="#" class="trend-item">
@@ -175,7 +115,6 @@
                 </a>
             </div>
 
-            <!-- Chat -->
             <div class="side-card chat-panel">
                 <h3 class="side-title">แชท</h3>
                 <div class="chat-friends">
@@ -201,21 +140,38 @@
     </footer>
 
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            // login guard
-            if (sessionStorage.getItem("loggedIn") !== "true") {
-                window.location.href = "index.html";
-                return;
-            }
+        const token = localStorage.getItem("authToken");
+        const username = localStorage.getItem("username") || "";
 
-            // logout
-            document.getElementById("logoutBtn").addEventListener("click", function (e) {
+        // ยามเฝ้าประตู: ไม่มี token = ยังไม่ล็อกอิน
+        if (!token) {
+            window.location.href = "index.html";
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            if (!token) return;
+
+            const firstChar = username ? username.charAt(0).toUpperCase() : "?";
+            document.getElementById("myAvatar").textContent = firstChar;
+            document.getElementById("myAvatar").title = username;
+            document.getElementById("composerAvatar").textContent = firstChar;
+
+            // ออกจากระบบ
+            document.getElementById("logoutBtn").addEventListener("click", async function (e) {
                 e.preventDefault();
-                sessionStorage.clear();
+                try {
+                    await fetch("/api/logout", {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ token }),
+                    });
+                } catch (err) { /* ignore */ }
+                localStorage.removeItem("authToken");
+                localStorage.removeItem("username");
                 window.location.href = "index.html";
             });
 
-            // nav active toggle
+            // เมนูนำทาง active
             document.querySelectorAll(".nav-item").forEach(function (item) {
                 item.addEventListener("click", function (e) {
                     e.preventDefault();
@@ -224,23 +180,169 @@
                 });
             });
 
-            // demo chat
+            setupComposer();
+            loadPosts();
+            setupChat();
+        });
+
+        function timeAgo(iso) {
+            // created_at เป็นเวลา UTC จาก D1 เช่น "2026-08-10 04:51:36"
+            const t = Date.parse(iso.replace(" ", "T") + "Z");
+            if (isNaN(t)) return "";
+            const diff = Math.floor((Date.now() - t) / 1000);
+            if (diff < 60) return "เมื่อสักครู่";
+            if (diff < 3600) return Math.floor(diff / 60) + " นาทีที่แล้ว";
+            if (diff < 86400) return Math.floor(diff / 3600) + " ชั่วโมงที่แล้ว";
+            return Math.floor(diff / 86400) + " วันที่แล้ว";
+        }
+
+        function renderPost(post) {
+            const card = document.createElement("article");
+            card.className = "post-card";
+
+            const head = document.createElement("div");
+            head.className = "post-head";
+
+            const av = document.createElement("div");
+            av.className = "avatar";
+            av.textContent = (post.author || "?").charAt(0).toUpperCase();
+
+            const meta = document.createElement("div");
+            meta.className = "post-meta";
+            const author = document.createElement("span");
+            author.className = "post-author";
+            author.textContent = post.author;
+            const time = document.createElement("span");
+            time.className = "post-time";
+            time.textContent = (post.type === "novel" ? "ลงบทใหม่ · " : "") + timeAgo(post.created_at);
+            meta.appendChild(author);
+            meta.appendChild(time);
+
+            head.appendChild(av);
+            head.appendChild(meta);
+
+            if (post.type === "novel") {
+                const badge = document.createElement("span");
+                badge.className = "post-badge";
+                badge.textContent = "นิยาย";
+                head.appendChild(badge);
+            }
+            card.appendChild(head);
+
+            if (post.type === "novel") {
+                const block = document.createElement("div");
+                block.className = "novel-block";
+                const cover = document.createElement("div");
+                cover.className = "novel-cover cover-1";
+                const info = document.createElement("div");
+                info.className = "novel-info";
+                const title = document.createElement("h2");
+                title.className = "novel-title";
+                title.textContent = post.title || "ไม่มีชื่อเรื่อง";
+                const excerpt = document.createElement("p");
+                excerpt.className = "novel-excerpt";
+                excerpt.textContent = post.content;
+                info.appendChild(title);
+                info.appendChild(excerpt);
+                block.appendChild(cover);
+                block.appendChild(info);
+                card.appendChild(block);
+            } else {
+                const text = document.createElement("p");
+                text.className = "post-text";
+                text.textContent = post.content;
+                card.appendChild(text);
+            }
+
+            const footer = document.createElement("div");
+            footer.className = "post-footer";
+            ["❤️ ถูกใจ", "💬 คอมเมนต์", "🔖 บันทึก", "↗️ แชร์"].forEach(function (label) {
+                const b = document.createElement("button");
+                b.className = "react-btn";
+                b.textContent = label;
+                footer.appendChild(b);
+            });
+            card.appendChild(footer);
+
+            return card;
+        }
+
+        async function loadPosts() {
+            const list = document.getElementById("postList");
+            try {
+                const res = await fetch("/api/posts");
+                const data = await res.json();
+                list.innerHTML = "";
+                if (!data.posts || data.posts.length === 0) {
+                    list.innerHTML = '<div class="feed-loading">ยังไม่มีโพสต์ มาเริ่มเขียนกันเลย!</div>';
+                    return;
+                }
+                data.posts.forEach(function (p) { list.appendChild(renderPost(p)); });
+            } catch (err) {
+                list.innerHTML = '<div class="feed-loading">โหลดโพสต์ไม่สำเร็จ</div>';
+            }
+        }
+
+        function setupComposer() {
+            const btn = document.getElementById("btnPost");
+            const titleEl = document.getElementById("postTitle");
+            const contentEl = document.getElementById("postContent");
+            const msg = document.getElementById("composerMsg");
+
+            btn.addEventListener("click", async function () {
+                const content = contentEl.value.trim();
+                const title = titleEl.value.trim();
+                msg.textContent = "";
+
+                if (!content) {
+                    msg.textContent = "กรุณากรอกเนื้อหาก่อนโพสต์";
+                    return;
+                }
+
+                btn.disabled = true;
+                try {
+                    const res = await fetch("/api/posts", {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ token, title, content }),
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.ok) {
+                        contentEl.value = "";
+                        titleEl.value = "";
+                        const list = document.getElementById("postList");
+                        const empty = list.querySelector(".feed-loading");
+                        if (empty) list.innerHTML = "";
+                        list.insertBefore(renderPost(data.post), list.firstChild);
+                    } else {
+                        msg.textContent = data.error || "โพสต์ไม่สำเร็จ";
+                    }
+                } catch (err) {
+                    msg.textContent = "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้";
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        // แชท (เดโม — ยังไม่บันทึกถาวร)
+        function setupChat() {
             const chatWindow = document.getElementById("chatWindow");
             const chatText = document.getElementById("chatText");
             const chatSend = document.getElementById("chatSend");
             function send() {
                 const val = chatText.value.trim();
                 if (!val) return;
-                const msg = document.createElement("div");
-                msg.className = "chat-msg me";
-                msg.textContent = val;
-                chatWindow.appendChild(msg);
+                const m = document.createElement("div");
+                m.className = "chat-msg me";
+                m.textContent = val;
+                chatWindow.appendChild(m);
                 chatText.value = "";
                 chatWindow.scrollTop = chatWindow.scrollHeight;
             }
             chatSend.addEventListener("click", send);
             chatText.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-        });
+        }
     </script>
 </body>
 </html>

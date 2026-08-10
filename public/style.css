@@ -1026,6 +1026,44 @@ body::after {
 
 .chat-input button:active { transform: translateY(1px); }
 
+/* Composer title + messages + feed states */
+.post-title-input {
+    width: 100%;
+    background: rgba(10, 10, 15, 0.5);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 11px 14px;
+    margin-bottom: 10px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.post-title-input:focus {
+    border-color: var(--gold-deep);
+    box-shadow: 0 0 0 3px rgba(201, 162, 75, 0.12);
+}
+
+.post-title-input::placeholder { color: var(--ink-faint); }
+
+.composer-msg {
+    color: #d97b7b;
+    font-size: 13px;
+    margin-top: 8px;
+    min-height: 0;
+}
+
+.post-list { display: flex; flex-direction: column; gap: 20px; }
+
+.feed-loading {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 14px;
+    padding: 30px 10px;
+}
+
 /* Responsive */
 @media (max-width: 1080px) {
     .app-layout { grid-template-columns: 200px 1fr; }
