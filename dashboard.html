@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แดชบอร์ด</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h1>แดชบอร์ด</h1>
+            <a href="index.html" class="btn-logout" id="logoutBtn">ออกจากระบบ</a>
+        </div>
+
+        <div class="welcome-card">
+            <h2>ยินดีต้อนรับ, <span id="displayName"></span>!</h2>
+            <p>คุณเข้าสู่ระบบสำเร็จแล้ว</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const loggedIn = sessionStorage.getItem("loggedIn");
+            const username = sessionStorage.getItem("username");
+
+            if (loggedIn !== "true") {
+                window.location.href = "index.html";
+                return;
+            }
+
+            document.getElementById("displayName").textContent = username;
+
+            document.getElementById("logoutBtn").addEventListener("click", function (e) {
+                e.preventDefault();
+                sessionStorage.clear();
+                window.location.href = "index.html";
+            });
+        });
+    </script>
+</body>
+</html>
