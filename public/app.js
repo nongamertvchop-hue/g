@@ -465,6 +465,7 @@
                 document.getElementById("chContent").value = "";
                 msg.className = "composer-msg ok";
                 msg.textContent = "เพิ่มตอนสำเร็จ!";
+                loadMyNovels();
             } else {
                 msg.className = "composer-msg";
                 msg.textContent = res.data.error || "เพิ่มตอนไม่สำเร็จ";
