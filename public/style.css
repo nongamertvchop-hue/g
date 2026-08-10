@@ -977,6 +977,21 @@ body::after {
     .novel-title { font-size: 20px; }
 }
 
+/* ลิขสิทธิ์ */
+.copyright {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-weight: 300;
+    letter-spacing: 0.3px;
+    padding: 24px 16px 28px;
+}
+
+.login-container .copyright {
+    margin-top: 20px;
+    padding-bottom: 0;
+}
+
 /* ปิดอนิเมชันให้คนที่แพ้การเคลื่อนไหว */
 @media (prefers-reduced-motion: reduce) {
     *,
