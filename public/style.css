@@ -238,6 +238,25 @@ body::after {
     font-weight: 400;
 }
 
+.info-message {
+    display: none;
+    color: #7fc98a;
+    font-size: 13px;
+    text-align: center;
+    margin-bottom: 10px;
+    font-weight: 400;
+    padding: 10px 12px;
+    background: rgba(111, 191, 115, 0.08);
+    border: 1px solid rgba(111, 191, 115, 0.25);
+    border-radius: 10px;
+}
+
+.optional {
+    color: var(--ink-faint);
+    font-weight: 300;
+    font-size: 12px;
+}
+
 .btn {
     display: block;
     width: 100%;
