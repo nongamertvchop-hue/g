@@ -4,11 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เข้าสู่ระบบ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="login-container">
         <div class="login-box">
+            <div class="emblem" aria-hidden="true">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <circle class="emblem-glow" cx="50" cy="50" r="34"/>
+                    <circle class="emblem-ring" cx="50" cy="50" r="34"/>
+                    <circle class="emblem-ring-inner" cx="50" cy="50" r="24"/>
+                    <path class="emblem-mark" d="M50 30 L67 62 L33 62 Z"/>
+                    <circle class="emblem-dot" cx="50" cy="50" r="3"/>
+                </svg>
+            </div>
+
             <div class="login-header">
                 <h1>เข้าสู่ระบบ</h1>
                 <p>กรุณากรอกข้อมูลเพื่อเข้าใช้งาน</p>
@@ -17,14 +30,14 @@
             <form id="loginForm">
                 <div class="input-group">
                     <label for="username">ชื่อผู้ใช้</label>
-                    <input type="text" id="username" placeholder="กรอกชื่อผู้ใช้" required>
+                    <input type="text" id="username" placeholder="กรอกชื่อผู้ใช้" autocomplete="username" required>
                 </div>
 
                 <div class="input-group">
                     <label for="password">รหัสผ่าน</label>
                     <div class="password-wrapper">
-                        <input type="password" id="password" placeholder="กรอกรหัสผ่าน" required>
-                        <button type="button" class="toggle-password" id="togglePassword">👁</button>
+                        <input type="password" id="password" placeholder="กรอกรหัสผ่าน" autocomplete="current-password" required>
+                        <button type="button" class="toggle-password" id="togglePassword" aria-label="แสดงรหัสผ่าน">👁</button>
                     </div>
                 </div>
 

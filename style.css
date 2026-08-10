@@ -1,3 +1,29 @@
+:root {
+    /* พื้นหลัง — ดำอมม่วง ไม่ใช่ดำสนิท */
+    --bg: #0a0a0f;
+    --bg-raise: #12101a;
+
+    /* สีหลัก — ทองโบราณ ใช้กับ accent เท่านั้น */
+    --gold: #c9a24b;
+    --gold-soft: #d8b968;
+    --gold-deep: #9a7a34;
+
+    /* สีรอง — แดงเลือด โผล่ในหมอกพื้นหลัง */
+    --blood: #7e1f2b;
+
+    /* ตัวอักษร — ขาวอมครีม ไม่ใช่ขาวสนิท */
+    --ink: #e8e3d8;
+    --ink-dim: #a49e91;
+    --ink-faint: #6d685e;
+
+    /* เส้นขอบจาง */
+    --line: #241f2e;
+
+    --radius: 18px;
+    --font-serif: 'Cormorant Garamond', serif;
+    --font-body: 'Sarabun', sans-serif;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -5,43 +31,138 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--ink);
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* หมอกแสงพื้นหลัง — วงกลม 2 วงมุมตรงข้ามกัน สร้างมิติ */
+body::before,
+body::after {
+    content: "";
+    position: fixed;
+    width: 480px;
+    height: 480px;
+    border-radius: 50%;
+    filter: blur(90px);
+    z-index: 0;
+    pointer-events: none;
+}
+
+body::before {
+    top: -140px;
+    left: -120px;
+    background: radial-gradient(circle, rgba(201, 162, 75, 0.16), transparent 70%);
+}
+
+body::after {
+    bottom: -160px;
+    right: -140px;
+    background: radial-gradient(circle, rgba(126, 31, 43, 0.20), transparent 70%);
 }
 
 .login-container {
     width: 100%;
-    max-width: 420px;
+    max-width: 430px;
     padding: 20px;
+    position: relative;
+    z-index: 1;
 }
 
 .login-box {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    padding: 40px 35px;
-    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.92), rgba(14, 12, 20, 0.92));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 44px 38px 36px;
+    /* เงาแบบมีทิศทาง ตกลงล่าง เบลอกว้าง + inset highlight ขอบบน */
+    box-shadow:
+        0 24px 60px -20px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 rgba(232, 227, 216, 0.06);
+}
+
+/* ตราสัญลักษณ์ */
+.emblem {
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 22px;
+}
+
+.emblem svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.emblem-glow {
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: 6;
+    opacity: 0.25;
+    filter: blur(6px);
+    transform-origin: center;
+    animation: breathe 3.4s ease-in-out infinite;
+}
+
+.emblem-ring {
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: 1.5;
+    opacity: 0.85;
+}
+
+.emblem-ring-inner {
+    fill: none;
+    stroke: var(--gold-deep);
+    stroke-width: 1;
+    opacity: 0.5;
+}
+
+.emblem-mark {
+    fill: none;
+    stroke: var(--gold-soft);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+}
+
+.emblem-dot {
+    fill: var(--gold-soft);
+}
+
+@keyframes breathe {
+    0%, 100% { opacity: 0.18; transform: scale(1); }
+    50% { opacity: 0.42; transform: scale(1.06); }
 }
 
 .login-header {
     text-align: center;
-    margin-bottom: 35px;
+    margin-bottom: 32px;
 }
 
 .login-header h1 {
-    color: #fff;
-    font-size: 28px;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 40px;
+    letter-spacing: 0.5px;
+    line-height: 1.1;
     margin-bottom: 8px;
+    /* gradient text — ขาวครีม→ทอง เหมือนแสงตกกระทบ */
+    background: linear-gradient(135deg, var(--ink) 20%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
 }
 
 .login-header p {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--ink-dim);
     font-size: 14px;
+    font-weight: 300;
 }
 
 .input-group {
@@ -50,31 +171,35 @@ body {
 
 .input-group label {
     display: block;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 14px;
+    color: var(--ink-dim);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
     margin-bottom: 8px;
 }
 
 .input-group input {
     width: 100%;
     padding: 14px 16px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(10, 10, 15, 0.6);
+    border: 1px solid var(--line);
     border-radius: 12px;
-    color: #fff;
+    color: var(--ink);
+    font-family: var(--font-body);
     font-size: 15px;
-    transition: all 0.3s ease;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
     outline: none;
 }
 
 .input-group input::placeholder {
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--ink-faint);
 }
 
+/* โฟกัสแล้วมี glow วงแหวนทอง แทน outline ฟ้าเบราว์เซอร์ */
 .input-group input:focus {
-    border-color: #6c63ff;
-    background: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.2);
+    border-color: var(--gold-deep);
+    background: rgba(18, 16, 26, 0.8);
+    box-shadow: 0 0 0 3px rgba(201, 162, 75, 0.15);
 }
 
 .password-wrapper {
@@ -93,21 +218,24 @@ body {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 18px;
-    opacity: 0.6;
+    font-size: 17px;
+    opacity: 0.5;
     transition: opacity 0.3s;
+    line-height: 1;
+    padding: 4px;
 }
 
 .toggle-password:hover {
-    opacity: 1;
+    opacity: 0.9;
 }
 
 .error-message {
-    color: #ff6b6b;
+    color: #d97b7b;
     font-size: 13px;
     text-align: center;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     min-height: 20px;
+    font-weight: 400;
 }
 
 .btn {
@@ -116,126 +244,179 @@ body {
     padding: 14px;
     border: none;
     border-radius: 12px;
-    font-size: 16px;
+    font-family: var(--font-serif);
+    font-size: 19px;
     font-weight: 600;
+    letter-spacing: 0.5px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: transform 0.2s ease, box-shadow 0.3s ease, background 0.3s ease, opacity 0.3s;
     text-align: center;
     text-decoration: none;
 }
 
 .btn-login {
-    background: linear-gradient(135deg, #6c63ff, #4834d4);
-    color: #fff;
+    background: linear-gradient(135deg, var(--gold-soft), var(--gold-deep));
+    color: #1a1408;
     margin-bottom: 12px;
+    box-shadow: 0 8px 24px -10px rgba(201, 162, 75, 0.6);
 }
 
 .btn-login:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(108, 99, 255, 0.4);
+    background: linear-gradient(135deg, #e3c477, var(--gold));
+    box-shadow: 0 12px 30px -10px rgba(201, 162, 75, 0.75);
 }
 
 .btn-login:active {
-    transform: translateY(0);
+    transform: translateY(1px);
+}
+
+.btn-login:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .btn-register {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    margin-bottom: 16px;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    margin-bottom: 18px;
+    font-size: 17px;
 }
 
 .btn-register:hover {
-    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--gold-deep);
+    background: rgba(201, 162, 75, 0.06);
+}
+
+.btn-register:active {
+    transform: translateY(1px);
 }
 
 .login-footer {
-    margin-top: 5px;
+    margin-top: 4px;
 }
 
 .forgot-password {
     display: block;
     text-align: center;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-faint);
     font-size: 13px;
     text-decoration: none;
     transition: color 0.3s;
 }
 
 .forgot-password:hover {
-    color: #6c63ff;
+    color: var(--gold);
 }
 
-/* Dashboard Styles */
+/* ===== Dashboard ===== */
 .dashboard-container {
     width: 100%;
     min-height: 100vh;
-    padding: 30px;
+    padding: 40px 30px;
+    position: relative;
+    z-index: 1;
 }
 
 .dashboard-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 40px;
+    margin-bottom: 48px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .dashboard-header h1 {
-    color: #fff;
-    font-size: 24px;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 30px;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, var(--ink) 20%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
 }
 
 .btn-logout {
     padding: 10px 24px;
-    background: rgba(255, 107, 107, 0.2);
-    color: #ff6b6b;
-    border: 1px solid rgba(255, 107, 107, 0.3);
+    background: transparent;
+    color: var(--ink-dim);
+    border: 1px solid var(--line);
     border-radius: 10px;
     cursor: pointer;
-    font-size: 14px;
+    font-family: var(--font-serif);
+    font-size: 16px;
     font-weight: 600;
     transition: all 0.3s;
     text-decoration: none;
 }
 
 .btn-logout:hover {
-    background: rgba(255, 107, 107, 0.3);
+    border-color: var(--blood);
+    color: #d97b7b;
+    background: rgba(126, 31, 43, 0.12);
 }
 
 .welcome-card {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    padding: 40px;
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.92), rgba(14, 12, 20, 0.92));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 48px 40px;
     text-align: center;
-    max-width: 600px;
+    max-width: 640px;
     margin: 0 auto;
+    box-shadow:
+        0 24px 60px -20px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 rgba(232, 227, 216, 0.06);
 }
 
 .welcome-card h2 {
-    color: #fff;
-    font-size: 32px;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 38px;
     margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--ink) 20%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
 }
 
 .welcome-card p {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--ink-dim);
     font-size: 16px;
+    font-weight: 300;
 }
 
 @media (max-width: 480px) {
     .login-box {
-        padding: 30px 20px;
+        padding: 34px 24px 28px;
     }
 
     .login-header h1 {
-        font-size: 24px;
+        font-size: 34px;
     }
 
     .dashboard-header {
         flex-direction: column;
-        gap: 15px;
+        gap: 16px;
+    }
+
+    .welcome-card h2 {
+        font-size: 30px;
+    }
+}
+
+/* ปิดอนิเมชันให้คนที่แพ้การเคลื่อนไหว */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
     }
 }
