@@ -13,6 +13,14 @@ binding = "DB"
 database_name = "ruen-aksorn"
 database_id = "a90ace59-0b0f-4559-9878-d7643e61451c"
 
+[[durable_objects.bindings]]
+name = "CHAT"
+class_name = "ChatRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatRoom"]
+
 [observability]
 enabled = true
 head_sampling_rate = 1

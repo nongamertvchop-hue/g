@@ -50,7 +50,29 @@ async function handleApi(request, env, url) {
     if (p === "/api/messages" && m === "GET") return listMessages(env, url);
     if (p === "/api/messages" && m === "POST") return sendMessage(request, env);
 
+    // realtime chat (WebSocket)
+    if (p === "/api/ws") return handleWs(request, env, url);
+
     return json({ error: "ไม่พบเส้นทาง API" }, 404);
+}
+
+// deterministic room id for a pair of users
+function roomIdFor(a, b) {
+    return [encodeURIComponent(a), encodeURIComponent(b)].sort().join("|");
+}
+
+async function handleWs(request, env, url) {
+    if (request.headers.get("Upgrade") !== "websocket")
+        return new Response("expected websocket", { status: 426 });
+    const username = await userFromToken(env, url.searchParams.get("token") || "");
+    const withUser = (url.searchParams.get("with") || "").trim();
+    if (!username || !withUser) return new Response("unauthorized", { status: 401 });
+
+    const roomId = roomIdFor(username, withUser);
+    const doUrl = new URL(request.url);
+    doUrl.searchParams.set("user", username);
+    const stub = env.CHAT.get(env.CHAT.idFromName(roomId));
+    return stub.fetch(new Request(doUrl.toString(), request));
 }
 
 // ===== Auth =====
@@ -348,6 +370,17 @@ async function sendMessage(request, env) {
     const message = await env.DB.prepare(
         "SELECT id, sender, recipient, content, created_at FROM messages WHERE id = ?"
     ).bind(res.meta.last_row_id).first();
+
+    // แจ้ง Durable Object ให้กระจายข้อความแบบเรียลไทม์ (ถ้ามีคนออนไลน์อยู่)
+    try {
+        const stub = env.CHAT.get(env.CHAT.idFromName(roomIdFor(username, to)));
+        await stub.fetch("https://do/broadcast", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ message }),
+        });
+    } catch (e) { /* ignore broadcast errors */ }
+
     return json({ ok: true, message });
 }
 
@@ -380,4 +413,70 @@ function json(data, status = 200) {
         status,
         headers: { "content-type": "application/json; charset=utf-8" },
     });
+}
+
+// ===== Durable Object: ห้องแชทเรียลไทม์ (หนึ่งห้องต่อคู่สนทนา) =====
+export class ChatRoom {
+    constructor(state, env) {
+        this.state = state;
+        this.env = env;
+    }
+
+    async fetch(request) {
+        // การเชื่อมต่อ WebSocket
+        if (request.headers.get("Upgrade") === "websocket") {
+            const url = new URL(request.url);
+            const user = url.searchParams.get("user") || "";
+            const pair = new WebSocketPair();
+            const client = pair[0];
+            const server = pair[1];
+            this.state.acceptWebSocket(server);
+            server.serializeAttachment({ user });
+            return new Response(null, { status: 101, webSocket: client });
+        }
+
+        // กระจายข้อความที่ส่งผ่าน REST
+        if (request.method === "POST") {
+            const body = await request.json().catch(() => ({}));
+            if (body && body.message) this.broadcast({ type: "message", message: body.message });
+            return new Response("ok");
+        }
+
+        return new Response("not found", { status: 404 });
+    }
+
+    async webSocketMessage(ws, raw) {
+        let data;
+        try { data = JSON.parse(raw); } catch (e) { return; }
+        const att = ws.deserializeAttachment() || {};
+        const sender = att.user;
+        if (!sender) return;
+        const to = (data.to || "").trim();
+        const content = (data.content || "").trim();
+        if (!to || !content || content.length > 2000) return;
+
+        const res = await this.env.DB.prepare(
+            "INSERT INTO messages (sender, recipient, content) VALUES (?, ?, ?)"
+        ).bind(sender, to, content).run();
+        const saved = await this.env.DB.prepare(
+            "SELECT id, sender, recipient, content, created_at FROM messages WHERE id = ?"
+        ).bind(res.meta.last_row_id).first();
+
+        this.broadcast({ type: "message", message: saved });
+    }
+
+    async webSocketClose(ws, code, reason, wasClean) {
+        try { ws.close(code, reason); } catch (e) { /* ignore */ }
+    }
+
+    async webSocketError(ws) {
+        try { ws.close(1011, "error"); } catch (e) { /* ignore */ }
+    }
+
+    broadcast(obj) {
+        const msg = JSON.stringify(obj);
+        for (const ws of this.state.getWebSockets()) {
+            try { ws.send(msg); } catch (e) { /* ignore */ }
+        }
+    }
 }

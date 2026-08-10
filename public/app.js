@@ -101,8 +101,8 @@
         tabFeed.classList.toggle("active", name === "feed");
         tabMenu.classList.toggle("active", name !== "feed");
 
-        // หยุด polling แชทเมื่อออกจากหน้าแชท
-        if (name !== "chat") stopChatPolling();
+        // ปิดการเชื่อมต่อแชทเมื่อออกจากหน้าแชท
+        if (name !== "chat") { closeSocket(); stopChatPoll(); }
 
         if (name === "feed") loadPosts();
         if (name === "novels") loadNovels();
@@ -498,9 +498,11 @@
         });
     }
 
-    // ---------- chat ----------
+    // ---------- chat (เรียลไทม์ผ่าน WebSocket + fallback polling) ----------
     let chatWith = null;
     let chatPoll = null;
+    let chatSocket = null;
+    let reconnectTimer = null;
     let lastMsgId = 0;
 
     function setupChatControls() {
@@ -564,23 +566,68 @@
         if (emptyNote) emptyNote.style.display = "none";
         document.getElementById("chatBox").style.display = "";
         document.getElementById("chatMessages").innerHTML = "";
-        loadMessages(true);
-        startChatPolling();
+        loadMessages(true).then(connectSocket);
     }
 
     async function loadMessages(scroll) {
         if (!chatWith) return;
         const res = await api("/api/messages?token=" + encodeURIComponent(token) + "&with=" + encodeURIComponent(chatWith));
         if (!res.ok || !res.data.messages) return;
-        const box = document.getElementById("chatMessages");
         res.data.messages.forEach(function (m) {
             if (m.id <= lastMsgId) return;
             lastMsgId = m.id;
-            const cls = m.sender === me.username ? "chat-msg me" : "chat-msg them";
-            box.appendChild(el("div", cls, m.content));
+            appendMsg(m);
         });
-        if (scroll) box.scrollTop = box.scrollHeight;
-        else box.scrollTop = box.scrollHeight;
+    }
+
+    function appendMsg(m) {
+        const box = document.getElementById("chatMessages");
+        const cls = m.sender === me.username ? "chat-msg me" : "chat-msg them";
+        box.appendChild(el("div", cls, m.content));
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function connectSocket() {
+        closeSocket();
+        const who = chatWith;
+        if (!who) return;
+        try {
+            const proto = location.protocol === "https:" ? "wss:" : "ws:";
+            const ws = new WebSocket(proto + "//" + location.host + "/api/ws?token=" +
+                encodeURIComponent(token) + "&with=" + encodeURIComponent(who));
+            chatSocket = ws;
+            ws.onopen = function () { stopChatPoll(); };
+            ws.onmessage = function (ev) {
+                let d;
+                try { d = JSON.parse(ev.data); } catch (e) { return; }
+                if (d.type === "message" && d.message && chatWith === who) {
+                    const m = d.message;
+                    if (m.id > lastMsgId) { lastMsgId = m.id; appendMsg(m); }
+                }
+            };
+            ws.onclose = function () {
+                if (chatSocket === ws) chatSocket = null;
+                if (chatWith === who) { startChatPoll(); scheduleReconnect(who); }
+            };
+            ws.onerror = function () { try { ws.close(); } catch (e) { /* ignore */ } };
+        } catch (e) {
+            startChatPoll();
+        }
+    }
+
+    function scheduleReconnect(who) {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(function () {
+            if (chatWith === who) connectSocket();
+        }, 4000);
+    }
+
+    function closeSocket() {
+        if (chatSocket) {
+            try { chatSocket.onclose = null; chatSocket.close(); } catch (e) { /* ignore */ }
+            chatSocket = null;
+        }
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     }
 
     async function sendChat() {
@@ -588,21 +635,23 @@
         const val = input.value.trim();
         if (!val || !chatWith) return;
         input.value = "";
-        const res = await api("/api/messages", {
-            method: "POST", headers: { "content-type": "application/json" },
-            body: JSON.stringify({ token, to: chatWith, content: val }),
-        });
-        if (res.ok && res.data.ok) {
-            loadMessages(true);
+        if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+            chatSocket.send(JSON.stringify({ to: chatWith, content: val }));
+        } else {
+            const res = await api("/api/messages", {
+                method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token, to: chatWith, content: val }),
+            });
+            if (res.ok && res.data.ok) loadMessages(true);
         }
     }
 
-    function startChatPolling() {
-        stopChatPolling();
+    function startChatPoll() {
+        stopChatPoll();
         chatPoll = setInterval(() => loadMessages(false), 3000);
     }
 
-    function stopChatPolling() {
+    function stopChatPoll() {
         if (chatPoll) { clearInterval(chatPoll); chatPoll = null; }
     }
 
