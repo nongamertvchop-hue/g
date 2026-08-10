@@ -3,42 +3,239 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>แดชบอร์ด</title>
+    <title>เรือนอักษร</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <div class="dashboard-container">
-        <div class="dashboard-header">
-            <h1>แดชบอร์ด</h1>
-            <a href="index.html" class="btn-logout" id="logoutBtn">ออกจากระบบ</a>
+<body class="app-body">
+    <!-- Header -->
+    <header class="app-header">
+        <div class="brand">
+            <span class="brand-emblem" aria-hidden="true">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="34" fill="none" stroke="#c9a24b" stroke-width="1.5"/>
+                    <path d="M50 30 L67 62 L33 62 Z" fill="none" stroke="#d8b968" stroke-width="1.5" stroke-linejoin="round"/>
+                    <circle cx="50" cy="50" r="3" fill="#d8b968"/>
+                </svg>
+            </span>
+            <span class="brand-name">เรือนอักษร</span>
         </div>
 
-        <div class="welcome-card">
-            <h2>ยินดีต้อนรับ, <span id="displayName"></span>!</h2>
-            <p>คุณเข้าสู่ระบบสำเร็จแล้ว</p>
+        <div class="search-bar">
+            <span class="search-icon">🔍</span>
+            <input type="text" placeholder="ค้นหานิยาย ผู้เขียน หรือโพสต์...">
         </div>
+
+        <div class="header-actions">
+            <button class="icon-btn" title="แจ้งเตือน">🔔</button>
+            <button class="icon-btn" title="ข้อความ">💬</button>
+            <div class="avatar" title="adminth">A</div>
+            <a href="index.html" class="btn-logout" id="logoutBtn">ออกจากระบบ</a>
+        </div>
+    </header>
+
+    <!-- Layout -->
+    <div class="app-layout">
+        <!-- Left sidebar -->
+        <aside class="sidebar-left">
+            <nav class="side-card">
+                <a href="#" class="nav-item active">🏛️ หน้าแรก</a>
+                <a href="#" class="nav-item">📖 นิยายของฉัน</a>
+                <a href="#" class="nav-item">✍️ เขียนเรื่องใหม่</a>
+                <a href="#" class="nav-item">🔖 ที่บันทึกไว้</a>
+                <a href="#" class="nav-item">💬 ห้องแชท</a>
+                <a href="#" class="nav-item">👤 โปรไฟล์</a>
+            </nav>
+
+            <div class="side-card">
+                <h3 class="side-title">หมวดหมู่</h3>
+                <div class="category-list">
+                    <a href="#" class="category-tag">แฟนตาซี</a>
+                    <a href="#" class="category-tag">โรแมนซ์</a>
+                    <a href="#" class="category-tag">สยองขวัญ</a>
+                    <a href="#" class="category-tag">ผจญภัย</a>
+                    <a href="#" class="category-tag">สืบสวน</a>
+                    <a href="#" class="category-tag">ดราม่า</a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main feed -->
+        <main class="feed">
+            <!-- Composer -->
+            <div class="composer">
+                <div class="avatar">A</div>
+                <div class="composer-body">
+                    <textarea placeholder="แบ่งปันเรื่องราว หรือเริ่มเขียนนิยายบทใหม่..."></textarea>
+                    <div class="composer-actions">
+                        <div class="composer-tools">
+                            <button class="tool-btn">🖼️ รูปภาพ</button>
+                            <button class="tool-btn">📖 บทนิยาย</button>
+                            <button class="tool-btn">😊 อารมณ์</button>
+                        </div>
+                        <button class="btn-post">โพสต์</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Novel chapter post -->
+            <article class="post-card">
+                <div class="post-head">
+                    <div class="avatar">ณ</div>
+                    <div class="post-meta">
+                        <span class="post-author">ณิชา นักเล่าเรื่อง</span>
+                        <span class="post-time">ลงบทใหม่ · 2 ชั่วโมงที่แล้ว</span>
+                    </div>
+                    <span class="post-badge">นิยาย</span>
+                </div>
+                <div class="novel-block">
+                    <div class="novel-cover cover-1">
+                        <span class="cover-genre">แฟนตาซี</span>
+                    </div>
+                    <div class="novel-info">
+                        <h2 class="novel-title">คำสาปแห่งหอคอยเงามืด</h2>
+                        <p class="novel-chapter">บทที่ 12 · แสงเทียนดวงสุดท้าย</p>
+                        <p class="novel-excerpt">เสียงลมหวีดผ่านช่องหินเก่าแก่ ราวกับเสียงกระซิบของผู้ที่จากไปแล้ว เอลาราก้าวขึ้นบันไดวนช้า ๆ มือกุมเทียนที่เหลือเพียงเปลวสุดท้าย...</p>
+                        <a href="#" class="novel-read">อ่านต่อ →</a>
+                    </div>
+                </div>
+                <div class="post-footer">
+                    <button class="react-btn">❤️ 248</button>
+                    <button class="react-btn">💬 36</button>
+                    <button class="react-btn">🔖 บันทึก</button>
+                    <button class="react-btn">↗️ แชร์</button>
+                </div>
+            </article>
+
+            <!-- Text + image post -->
+            <article class="post-card">
+                <div class="post-head">
+                    <div class="avatar">ก</div>
+                    <div class="post-meta">
+                        <span class="post-author">กันต์ นักวาด</span>
+                        <span class="post-time">5 ชั่วโมงที่แล้ว</span>
+                    </div>
+                </div>
+                <p class="post-text">วาดภาพประกอบให้ฉากปราสาทในบทที่ 8 เสร็จแล้วครับ ใครตามอ่านอยู่บ้าง มาดูบรรยากาศกัน 🕯️</p>
+                <div class="post-image img-1"></div>
+                <div class="post-footer">
+                    <button class="react-btn">❤️ 512</button>
+                    <button class="react-btn">💬 74</button>
+                    <button class="react-btn">🔖 บันทึก</button>
+                    <button class="react-btn">↗️ แชร์</button>
+                </div>
+            </article>
+
+            <!-- Text post -->
+            <article class="post-card">
+                <div class="post-head">
+                    <div class="avatar">ม</div>
+                    <div class="post-meta">
+                        <span class="post-author">มณีรัตน์</span>
+                        <span class="post-time">เมื่อวานนี้</span>
+                    </div>
+                </div>
+                <p class="post-text">เขียนนิยายเรื่องแรกจบไปหนึ่งภาคแล้ว! ขอบคุณทุกกำลังใจนะคะ ภาคสองจะเข้มข้นกว่าเดิม เตรียมใจไว้ได้เลย ✨📖</p>
+                <div class="post-footer">
+                    <button class="react-btn">❤️ 189</button>
+                    <button class="react-btn">💬 22</button>
+                    <button class="react-btn">🔖 บันทึก</button>
+                    <button class="react-btn">↗️ แชร์</button>
+                </div>
+            </article>
+        </main>
+
+        <!-- Right sidebar -->
+        <aside class="sidebar-right">
+            <!-- Trending novels -->
+            <div class="side-card">
+                <h3 class="side-title">นิยายมาแรง</h3>
+                <a href="#" class="trend-item">
+                    <span class="trend-rank">1</span>
+                    <div>
+                        <span class="trend-title">ดาบเทวะกับราตรีนิรันดร์</span>
+                        <span class="trend-meta">แฟนตาซี · 1.2M อ่าน</span>
+                    </div>
+                </a>
+                <a href="#" class="trend-item">
+                    <span class="trend-rank">2</span>
+                    <div>
+                        <span class="trend-title">บันทึกรักเมืองหมอก</span>
+                        <span class="trend-meta">โรแมนซ์ · 984K อ่าน</span>
+                    </div>
+                </a>
+                <a href="#" class="trend-item">
+                    <span class="trend-rank">3</span>
+                    <div>
+                        <span class="trend-title">เสียงกระซิบใต้พื้นพิภพ</span>
+                        <span class="trend-meta">สยองขวัญ · 736K อ่าน</span>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Chat -->
+            <div class="side-card chat-panel">
+                <h3 class="side-title">แชท</h3>
+                <div class="chat-friends">
+                    <div class="friend online"><div class="avatar sm">ณ</div><span>ณิชา</span></div>
+                    <div class="friend online"><div class="avatar sm">ก</div><span>กันต์</span></div>
+                    <div class="friend"><div class="avatar sm">ม</div><span>มณี</span></div>
+                </div>
+                <div class="chat-window" id="chatWindow">
+                    <div class="chat-msg them">อ่านบทใหม่ยัง? สนุกมากเลย</div>
+                    <div class="chat-msg me">อ่านแล้ว! รอบทต่อไปไม่ไหวแล้ว 😆</div>
+                    <div class="chat-msg them">เดี๋ยวคืนนี้ลงต่อนะ 🕯️</div>
+                </div>
+                <div class="chat-input">
+                    <input type="text" id="chatText" placeholder="พิมพ์ข้อความ...">
+                    <button id="chatSend">ส่ง</button>
+                </div>
+            </div>
+        </aside>
     </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const loggedIn = sessionStorage.getItem("loggedIn");
-            const username = sessionStorage.getItem("username");
-
-            if (loggedIn !== "true") {
+            // login guard
+            if (sessionStorage.getItem("loggedIn") !== "true") {
                 window.location.href = "index.html";
                 return;
             }
 
-            document.getElementById("displayName").textContent = username;
-
+            // logout
             document.getElementById("logoutBtn").addEventListener("click", function (e) {
                 e.preventDefault();
                 sessionStorage.clear();
                 window.location.href = "index.html";
             });
+
+            // nav active toggle
+            document.querySelectorAll(".nav-item").forEach(function (item) {
+                item.addEventListener("click", function (e) {
+                    e.preventDefault();
+                    document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+                    item.classList.add("active");
+                });
+            });
+
+            // demo chat
+            const chatWindow = document.getElementById("chatWindow");
+            const chatText = document.getElementById("chatText");
+            const chatSend = document.getElementById("chatSend");
+            function send() {
+                const val = chatText.value.trim();
+                if (!val) return;
+                const msg = document.createElement("div");
+                msg.className = "chat-msg me";
+                msg.textContent = val;
+                chatWindow.appendChild(msg);
+                chatText.value = "";
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+            chatSend.addEventListener("click", send);
+            chatText.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
         });
     </script>
 </body>
