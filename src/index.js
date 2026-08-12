@@ -699,7 +699,8 @@ async function changeAlias(request, env) {
     const alias = (b.alias || "").trim();
     if (alias.length < 2 || alias.length > 24)
         return json({ error: "นามแฝงต้องยาว 2-24 ตัวอักษร" }, 400);
-    if (!/^[\p{L}\p{N}#_.\- ]+$/u.test(alias))
+    // \p{M} จำเป็นสำหรับภาษาไทย (สระ/วรรณยุกต์นับเป็นเครื่องหมายประกอบ ไม่ใช่ตัวอักษร)
+    if (!/^[\p{L}\p{M}\p{N}#_.\- ]+$/u.test(alias))
         return json({ error: "นามแฝงใช้ได้เฉพาะตัวอักษร ตัวเลข # _ . - และเว้นวรรค" }, 400);
 
     const { censored } = censor(alias);
@@ -729,7 +730,7 @@ async function register(request, env) {
 
     if (username.length < 3) return json({ error: "ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร" }, 400);
     if (username.length > 24) return json({ error: "ชื่อผู้ใช้ยาวเกินไป (ไม่เกิน 24 ตัวอักษร)" }, 400);
-    if (!/^[\p{L}\p{N}_.-]+$/u.test(username))
+    if (!/^[\p{L}\p{M}\p{N}_.-]+$/u.test(username))
         return json({ error: "ชื่อผู้ใช้ใช้ได้เฉพาะตัวอักษร ตัวเลข จุด ขีดกลาง และขีดล่าง" }, 400);
     if (password.length < 6) return json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }, 400);
     if (password.length > 200) return json({ error: "รหัสผ่านยาวเกินไป" }, 400);
