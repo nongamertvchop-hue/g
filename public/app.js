@@ -415,7 +415,37 @@
         container.appendChild(remove);
     }
 
-    async function uploadFile(file) {
+    // ย่อรูปในเครื่องก่อนอัปโหลด — ประหยัดพื้นที่และโหลดเร็วขึ้น
+    // (ข้าม GIF เพราะจะทำให้ภาพเคลื่อนไหวหาย)
+    function compressImage(file) {
+        return new Promise(function (resolve) {
+            if (file.type.indexOf("image/") !== 0 || file.type === "image/gif") return resolve(file);
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = function () {
+                const MAX = 1600;
+                let w = img.naturalWidth, h = img.naturalHeight;
+                if (w > MAX || h > MAX) {
+                    if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+                    else { w = Math.round(w * MAX / h); h = MAX; }
+                }
+                const canvas = document.createElement("canvas");
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+                canvas.toBlob(function (blob) {
+                    URL.revokeObjectURL(url);
+                    if (!blob || blob.size >= file.size) return resolve(file);
+                    resolve(new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }));
+                }, "image/jpeg", 0.82);
+            };
+            img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+            img.src = url;
+        });
+    }
+
+    async function uploadFile(rawFile) {
+        const file = await compressImage(rawFile);
         const fd = new FormData();
         fd.append("token", token);
         fd.append("file", file);
@@ -441,9 +471,9 @@
                 fileInput.value = "";
                 if (!f) return;
                 const isVid = f.type.indexOf("video/") === 0;
-                const limit = isVid ? 100 : 10;
-                if (f.size > limit * 1048576) {
-                    toast("ไฟล์ใหญ่เกินไป (จำกัด " + limit + " MB)", true);
+                // รูปจะถูกย่ออัตโนมัติก่อนส่ง จึงรับไฟล์ต้นฉบับใหญ่ได้
+                if (isVid && f.size > 20 * 1048576) {
+                    toast("วิดีโอใหญ่เกินไป (จำกัด 20 MB)", true);
                     return;
                 }
                 pickedFile = f;
@@ -475,7 +505,7 @@
             const f = input.files[0];
             input.value = "";
             if (!f) return;
-            if (f.size > 100 * 1048576) { msg.textContent = "ไฟล์ใหญ่เกินไป (จำกัด 100 MB)"; return; }
+            if (f.size > 20 * 1048576) { msg.className = "composer-msg"; msg.textContent = "ไฟล์ใหญ่เกินไป (จำกัด 20 MB)"; return; }
             clipFile = f;
             msg.textContent = "";
             showPreview(preview, f);

@@ -72,8 +72,9 @@ async function handleApi(request, env, url) {
 // ===== Media (R2) =====
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
-const MAX_IMAGE = 10 * 1024 * 1024;   // 10 MB
-const MAX_VIDEO = 100 * 1024 * 1024;  // 100 MB
+// Workers KV จำกัดค่าละ 25 MB — เผื่อไว้ให้ปลอดภัย
+const MAX_IMAGE = 5 * 1024 * 1024;    // 5 MB (หน้าเว็บย่อรูปให้อัตโนมัติก่อนส่ง)
+const MAX_VIDEO = 20 * 1024 * 1024;   // 20 MB
 
 function extFor(type) {
     const map = {
@@ -104,12 +105,12 @@ async function uploadMedia(request, env) {
 
     const limit = isImage ? MAX_IMAGE : MAX_VIDEO;
     if (file.size > limit)
-        return json({ error: "ไฟล์ใหญ่เกินไป (จำกัด " + (isImage ? "10 MB" : "100 MB") + ")" }, 413);
+        return json({ error: "ไฟล์ใหญ่เกินไป (จำกัด " + (isImage ? "5 MB" : "20 MB") + ")" }, 413);
 
     const key = (isVideo ? "video/" : "image/") + crypto.randomUUID() + "." + extFor(type);
-    await env.MEDIA.put(key, file.stream(), {
-        httpMetadata: { contentType: type, cacheControl: "public, max-age=31536000, immutable" },
-        customMetadata: { uploader: username },
+    const bytes = await file.arrayBuffer();
+    await env.MEDIA.put(key, bytes, {
+        metadata: { contentType: type, uploader: username },
     });
 
     return json({ ok: true, key, url: "/media/" + key, media_type: isVideo ? "video" : "image" });
@@ -120,14 +121,16 @@ async function serveMedia(env, url) {
     const key = decodeURIComponent(url.pathname.replace("/media/", ""));
     if (!key) return new Response("not found", { status: 404 });
 
-    const obj = await env.MEDIA.get(key);
-    if (!obj) return new Response("not found", { status: 404 });
+    const res = await env.MEDIA.getWithMetadata(key, { type: "arrayBuffer" });
+    if (!res || !res.value) return new Response("not found", { status: 404 });
 
-    const headers = new Headers();
-    obj.writeHttpMetadata(headers);
-    headers.set("etag", obj.httpEtag);
-    headers.set("cache-control", "public, max-age=31536000, immutable");
-    return new Response(obj.body, { headers });
+    const meta = res.metadata || {};
+    return new Response(res.value, {
+        headers: {
+            "content-type": meta.contentType || "application/octet-stream",
+            "cache-control": "public, max-age=31536000, immutable",
+        },
+    });
 }
 
 // deterministic room id for a pair of users

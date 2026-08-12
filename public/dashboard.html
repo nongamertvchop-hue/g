@@ -232,7 +232,7 @@
                     <h3 class="side-title">อัปโหลดคลิปใหม่</h3>
                     <input type="text" id="clipCaption" class="post-title-input" placeholder="คำบรรยายคลิป (ไม่บังคับ)">
                     <input type="file" id="clipFile" accept="video/*" hidden>
-                    <button class="tool-btn" type="button" id="btnPickClip">🎬 เลือกวิดีโอ (สูงสุด 100 MB)</button>
+                    <button class="tool-btn" type="button" id="btnPickClip">🎬 เลือกวิดีโอ (สูงสุด 20 MB)</button>
                     <div id="clipPreview" class="media-preview" style="display:none"></div>
                     <div id="clipMsg" class="composer-msg"></div>
                     <button class="btn-post" type="button" id="btnUploadClip">อัปโหลดคลิป</button>
@@ -240,8 +240,8 @@
 
                 <div class="clips-placeholder" id="clipDisabled" style="display:none">
                     <div class="clips-icon">🎬</div>
-                    <h3>ยังไม่ได้เปิดใช้งานที่เก็บไฟล์</h3>
-                    <p>ระบบอัปโหลดต้องเปิด Cloudflare R2 ในหน้า Dashboard ก่อน (ใช้งานฟรี) เมื่อเปิดแล้วหน้านี้จะพร้อมใช้งานทันที</p>
+                    <h3>ยังไม่พร้อมใช้งาน</h3>
+                    <p>ระบบที่เก็บไฟล์ยังไม่ถูกเชื่อมต่อ เมื่อเชื่อมแล้วหน้านี้จะพร้อมใช้งานทันที</p>
                 </div>
 
                 <h3 class="side-title">คลิปทั้งหมด</h3>
