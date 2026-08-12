@@ -1585,7 +1585,12 @@ body::after {
     flex-direction: column;
     padding: 18px;
     gap: 14px;
-    background: linear-gradient(180deg, rgba(6, 5, 10, 0.72) 0%, rgba(6, 5, 10, 0.5) 40%, rgba(6, 5, 10, 0.86) 100%);
+    background: linear-gradient(180deg,
+        rgba(6, 5, 10, 0.78) 0%,
+        rgba(6, 5, 10, 0.34) 26%,
+        rgba(6, 5, 10, 0.22) 52%,
+        rgba(6, 5, 10, 0.62) 82%,
+        rgba(6, 5, 10, 0.88) 100%);
 }
 
 .aria-head {
@@ -1645,6 +1650,7 @@ body::after {
 
 .aria-welcome {
     text-align: center;
+    text-shadow: 0 2px 12px rgba(3, 2, 6, 0.95);
     color: var(--ink-dim);
     font-size: 15px;
     line-height: 1.9;
