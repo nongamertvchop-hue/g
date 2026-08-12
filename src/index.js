@@ -5,7 +5,9 @@
 const COVERS = ["cover-1", "cover-2", "cover-3", "cover-4", "cover-5", "cover-6"];
 
 // ความปลอดภัย
-const PBKDF2_ITERATIONS = 210000;      // มาตรฐาน OWASP
+// Cloudflare Workers รองรับสูงสุด 100,000 รอบ (ขอมากกว่านี้จะ error)
+// จึงชดเชยด้วยการล็อกบัญชีเมื่อกรอกผิดซ้ำ ๆ ด้านล่าง
+const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 30;               // เซสชันหมดอายุใน 30 วัน
 const MAX_FAILS_PER_USER = 5;          // กรอกผิดเกินนี้ใน 15 นาที = ล็อกชั่วคราว
 const MAX_FAILS_PER_IP = 20;
