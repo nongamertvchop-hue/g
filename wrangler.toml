@@ -13,6 +13,9 @@ binding = "DB"
 database_name = "ruen-aksorn"
 database_id = "a90ace59-0b0f-4559-9878-d7643e61451c"
 
+[ai]
+binding = "AI"
+
 [[kv_namespaces]]
 binding = "MEDIA"
 id = "7b07683734a84dcba73293050e1a2278"

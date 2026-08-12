@@ -124,6 +124,7 @@
         setupMenu();
         setupComposer();
         setupMedia();
+        setupAria();
         setupWrite();
         setupChatControls();
         setupSidebarNav();
@@ -132,7 +133,7 @@
     });
 
     // ---------- view router ----------
-    const featureViews = ["feed", "menu", "novels", "chat", "write", "profile", "clips"];
+    const featureViews = ["feed", "menu", "novels", "chat", "write", "profile", "clips", "aria"];
 
     function showView(name) {
         featureViews.forEach(function (v) {
@@ -976,6 +977,113 @@
 
     function stopChatPoll() {
         if (chatPoll) { clearInterval(chatPoll); chatPoll = null; }
+    }
+
+    // ---------- อาเรีย (AI) ----------
+    let ariaHistory = [];
+    let ariaBusy = false;
+
+    function setupAria() {
+        const openBtn = document.getElementById("btnAria");
+        if (openBtn) openBtn.addEventListener("click", function () { showView("aria"); });
+
+        const sendBtn = document.getElementById("ariaSend");
+        const input = document.getElementById("ariaText");
+        const clearBtn = document.getElementById("ariaClear");
+
+        if (!sendBtn || !input) return;
+
+        sendBtn.addEventListener("click", sendAria);
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAria(); }
+        });
+        // ขยายช่องพิมพ์ตามเนื้อหา
+        input.addEventListener("input", function () {
+            input.style.height = "auto";
+            input.style.height = Math.min(input.scrollHeight, 140) + "px";
+        });
+
+        document.querySelectorAll(".aria-chip").forEach(function (chip) {
+            chip.addEventListener("click", function () {
+                input.value = chip.textContent;
+                sendAria();
+            });
+        });
+
+        if (clearBtn) clearBtn.addEventListener("click", async function () {
+            const yes = await confirmDialog("ล้างบทสนทนากับอาเรียทั้งหมด?", "ล้าง");
+            if (!yes) return;
+            ariaHistory = [];
+            const box = document.getElementById("ariaMessages");
+            box.innerHTML = "";
+            box.appendChild(el("div", "aria-empty", "เริ่มบทสนทนาใหม่ได้เลยค่ะ"));
+        });
+    }
+
+    function ariaBubble(role, text) {
+        const row = el("div", "aria-row " + (role === "user" ? "user" : "bot"));
+        if (role !== "user") row.appendChild(el("div", "aria-avatar sm", "อ"));
+        const bubble = el("div", "aria-bubble");
+        // แสดงข้อความแบบหลายย่อหน้า
+        String(text).split("\n").forEach(function (line, i) {
+            if (i > 0) bubble.appendChild(document.createElement("br"));
+            bubble.appendChild(document.createTextNode(line));
+        });
+        row.appendChild(bubble);
+        return row;
+    }
+
+    async function sendAria() {
+        if (ariaBusy) return;
+        const input = document.getElementById("ariaText");
+        const box = document.getElementById("ariaMessages");
+        const text = input.value.trim();
+        if (!text) return;
+
+        const welcome = box.querySelector(".aria-welcome");
+        if (welcome) welcome.remove();
+        const empty = box.querySelector(".aria-empty");
+        if (empty) empty.remove();
+
+        input.value = "";
+        input.style.height = "auto";
+        box.appendChild(ariaBubble("user", text));
+        box.scrollTop = box.scrollHeight;
+
+        // แสดงจุดกำลังพิมพ์
+        ariaBusy = true;
+        const typing = el("div", "aria-row bot");
+        typing.appendChild(el("div", "aria-avatar sm", "อ"));
+        const dots = el("div", "aria-bubble aria-typing");
+        dots.appendChild(el("span", "dot"));
+        dots.appendChild(el("span", "dot"));
+        dots.appendChild(el("span", "dot"));
+        typing.appendChild(dots);
+        box.appendChild(typing);
+        box.scrollTop = box.scrollHeight;
+
+        const res = await api("/api/aria", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ token, message: text, messages: ariaHistory }),
+        });
+
+        typing.remove();
+        ariaBusy = false;
+
+        if (res.ok && res.data.ok) {
+            box.appendChild(ariaBubble("assistant", res.data.reply));
+            ariaHistory.push({ role: "user", content: text });
+            ariaHistory.push({ role: "assistant", content: res.data.reply });
+            if (ariaHistory.length > 20) ariaHistory = ariaHistory.slice(-20);
+        } else {
+            const errRow = el("div", "aria-row bot");
+            errRow.appendChild(el("div", "aria-avatar sm", "อ"));
+            errRow.appendChild(el("div", "aria-bubble aria-error",
+                res.data.error || "เชื่อมต่อไม่ได้ ลองใหม่อีกครั้งนะ"));
+            box.appendChild(errRow);
+        }
+        box.scrollTop = box.scrollHeight;
     }
 
     // ---------- profile ----------

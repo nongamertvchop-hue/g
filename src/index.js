@@ -59,6 +59,9 @@ async function handleApi(request, env, url) {
     if (p === "/api/messages" && m === "GET") return listMessages(env, url);
     if (p === "/api/messages" && m === "POST") return sendMessage(request, env);
 
+    // อาเรีย (ผู้ช่วย AI)
+    if (p === "/api/aria" && m === "POST") return askAria(request, env);
+
     // media (R2)
     if (p === "/api/media/status" && m === "GET") return json({ ok: true, enabled: !!env.MEDIA });
     if (p === "/api/media/upload" && m === "POST") return uploadMedia(request, env);
@@ -67,6 +70,58 @@ async function handleApi(request, env, url) {
     if (p === "/api/ws") return handleWs(request, env, url);
 
     return json({ error: "ไม่พบเส้นทาง API" }, 404);
+}
+
+// ===== อาเรีย (Workers AI) =====
+const ARIA_MODELS = [
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "@cf/meta/llama-3.1-8b-instruct",
+];
+
+const ARIA_SYSTEM =
+    "คุณคือ 'อาเรีย' ผู้ช่วยประจำเว็บไซต์ 'เรือนอักษร' ซึ่งเป็นแพลตฟอร์มลงนิยายและโพสต์ของนักเขียนไทย " +
+    "คุณมีบุคลิกอบอุ่น สุภาพ เป็นกันเอง และช่างสังเกต พูดคุยเหมือนเพื่อนที่รู้เรื่องการเขียนดี " +
+    "ตอบเป็นภาษาไทยเสมอ (ยกเว้นผู้ใช้ถามเป็นภาษาอื่น) ตอบให้กระชับ อ่านง่าย ตรงประเด็น " +
+    "ถ้าผู้ใช้ขอความช่วยเหลือเรื่องนิยาย ให้ช่วยคิดพล็อต ตัวละคร ชื่อเรื่อง บทสนทนา หรือช่วยตรวจสำนวน " +
+    "ถ้าไม่รู้คำตอบให้บอกตามตรง อย่าแต่งข้อมูลขึ้นมาเอง";
+
+async function askAria(request, env) {
+    if (!env.AI) return json({ error: "ระบบ AI ยังไม่พร้อมใช้งาน" }, 503);
+
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบก่อนคุยกับอาเรีย" }, 401);
+
+    const history = Array.isArray(b.messages) ? b.messages : [];
+    const message = (b.message || "").trim();
+    if (!message) return json({ error: "กรุณาพิมพ์ข้อความ" }, 400);
+    if (message.length > 4000) return json({ error: "ข้อความยาวเกินไป" }, 400);
+
+    // เก็บบทสนทนาย้อนหลังไม่เกิน 10 รอบ เพื่อไม่ให้เกินโควตา
+    const trimmed = history
+        .filter((x) => x && (x.role === "user" || x.role === "assistant") && typeof x.content === "string")
+        .slice(-10)
+        .map((x) => ({ role: x.role, content: String(x.content).slice(0, 2000) }));
+
+    const messages = [{ role: "system", content: ARIA_SYSTEM }]
+        .concat(trimmed)
+        .concat([{ role: "user", content: message }]);
+
+    let lastErr = null;
+    for (const model of ARIA_MODELS) {
+        try {
+            const out = await env.AI.run(model, { messages, max_tokens: 700, temperature: 0.7 });
+            const reply = (out && (out.response || out.result)) || "";
+            if (reply && String(reply).trim()) {
+                return json({ ok: true, reply: String(reply).trim(), model });
+            }
+            lastErr = "empty response";
+        } catch (e) {
+            lastErr = String(e);
+        }
+    }
+
+    return json({ error: "อาเรียตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้งนะ", detail: lastErr }, 502);
 }
 
 // ===== Media (R2) =====

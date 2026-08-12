@@ -21,6 +21,10 @@
                 </svg>
             </span>
             <span class="brand-name">เรือนอักษร</span>
+            <button class="aria-launch" id="btnAria" type="button" title="คุยกับอาเรีย ผู้ช่วย AI">
+                <span class="aria-launch-dot" aria-hidden="true"></span>
+                <span>AI</span>
+            </button>
         </div>
 
         <div class="header-center">
@@ -221,6 +225,55 @@
                 </div>
                 <h3 class="side-title">โพสต์ของฉัน</h3>
                 <div id="pfPostList" class="post-list"></div>
+            </section>
+
+            <!-- ===== อาเรีย (AI) ===== -->
+            <section id="view-aria" class="view" style="display:none">
+                <button class="back-btn back-to-menu">← กลับเมนู</button>
+
+                <div class="aria-stage">
+                    <!-- พื้นหลังหลุมดำเคลื่อนไหว -->
+                    <div class="blackhole" aria-hidden="true">
+                        <div class="bh-stars"></div>
+                        <div class="bh-space">
+                            <div class="bh-disk-wrap">
+                                <div class="bh-disk"></div>
+                                <div class="bh-disk bh-disk-2"></div>
+                            </div>
+                            <div class="bh-lens"></div>
+                            <div class="bh-ring"></div>
+                            <div class="bh-core"></div>
+                        </div>
+                    </div>
+
+                    <div class="aria-panel">
+                        <div class="aria-head">
+                            <div class="aria-avatar">อ</div>
+                            <div class="aria-id">
+                                <h2 class="aria-name">อาเรีย</h2>
+                                <span class="aria-role">ผู้ช่วยประจำเรือนอักษร</span>
+                            </div>
+                            <button class="aria-clear" id="ariaClear" type="button">ล้างบทสนทนา</button>
+                        </div>
+
+                        <div class="aria-messages" id="ariaMessages">
+                            <div class="aria-welcome">
+                                <p>สวัสดีค่ะ ฉันคืออาเรีย 🌙</p>
+                                <p>ให้ช่วยคิดพล็อต ตั้งชื่อเรื่อง ออกแบบตัวละคร ตรวจสำนวน หรือคุยเล่นก็ได้นะคะ</p>
+                                <div class="aria-chips">
+                                    <button class="aria-chip" type="button">ช่วยคิดพล็อตนิยายแฟนตาซี</button>
+                                    <button class="aria-chip" type="button">ตั้งชื่อตัวละครหญิงเท่ ๆ</button>
+                                    <button class="aria-chip" type="button">เขียนบทเปิดเรื่องให้หน่อย</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="aria-input">
+                            <textarea id="ariaText" rows="1" placeholder="พิมพ์ข้อความถึงอาเรีย... (Enter เพื่อส่ง)"></textarea>
+                            <button id="ariaSend" type="button">ส่ง</button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- ===== อัปคลิป ===== -->
