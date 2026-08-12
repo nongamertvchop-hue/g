@@ -43,6 +43,12 @@ async function handleApi(request, env, url) {
     if (p === "/api/posts/update" && m === "POST") return updatePost(request, env);
     if (p === "/api/posts/delete" && m === "POST") return deletePost(request, env);
     if (p === "/api/posts/like" && m === "POST") return toggleLike(request, env);
+    if (p === "/api/posts/share" && m === "POST") return sharePost(request, env);
+
+    // comments
+    if (p === "/api/comments" && m === "GET") return listComments(env, url);
+    if (p === "/api/comments" && m === "POST") return createComment(request, env);
+    if (p === "/api/comments/delete" && m === "POST") return deleteComment(request, env);
 
     // novels
     if (p === "/api/novels" && m === "GET") return listNovels(env);
@@ -61,6 +67,8 @@ async function handleApi(request, env, url) {
 
     // อาเรีย (ผู้ช่วย AI)
     if (p === "/api/aria" && m === "POST") return askAria(request, env);
+    if (p === "/api/aria/history" && m === "GET") return ariaHistory(env, url);
+    if (p === "/api/aria/clear" && m === "POST") return ariaClear(request, env);
 
     // media (R2)
     if (p === "/api/media/status" && m === "GET") return json({ ok: true, enabled: !!env.MEDIA });
@@ -85,7 +93,101 @@ const ARIA_SYSTEM =
     "คุณมีบุคลิกอบอุ่น สุภาพ เป็นกันเอง และช่างสังเกต พูดคุยเหมือนเพื่อนที่รู้เรื่องการเขียนดี " +
     "ตอบเป็นภาษาไทยเสมอ (ยกเว้นผู้ใช้ถามเป็นภาษาอื่น) ตอบให้กระชับ อ่านง่าย ตรงประเด็น " +
     "ถ้าผู้ใช้ขอความช่วยเหลือเรื่องนิยาย ให้ช่วยคิดพล็อต ตัวละคร ชื่อเรื่อง บทสนทนา หรือช่วยตรวจสำนวน " +
+    "คุณสามารถเห็นข้อมูลจริงของเว็บได้ (จำนวนนิยาย โพสต์ สมาชิก หัวใจ คอมเมนต์ แชร์ รายชื่อนักเขียนและนิยาย) " +
+    "ซึ่งจะถูกส่งมาให้ในข้อความระบบถัดไป ให้ใช้ข้อมูลนั้นตอบอย่างมั่นใจเมื่อถูกถามเรื่องเว็บ " +
+    "คุณจำบทสนทนาเก่ากับผู้ใช้คนนี้ได้ข้ามวัน ถ้าเขาเคยเล่าอะไรไว้ให้อ้างถึงได้อย่างเป็นธรรมชาติ " +
     "ถ้าไม่รู้คำตอบให้บอกตามตรง อย่าแต่งข้อมูลขึ้นมาเอง";
+
+// รวบรวมข้อมูลจริงจากฐานข้อมูล ส่งให้อาเรียอ่านทุกครั้งที่ตอบ
+async function buildSiteContext(env, username) {
+    const q = (sql, ...binds) => env.DB.prepare(sql).bind(...binds).all();
+    const one = (sql, ...binds) => env.DB.prepare(sql).bind(...binds).first();
+
+    const [stats, novels, topPosts, authors, mine] = await Promise.all([
+        one(
+            "SELECT (SELECT COUNT(*) FROM novels) AS novels, (SELECT COUNT(*) FROM chapters) AS chapters, " +
+            "(SELECT COUNT(*) FROM posts) AS posts, (SELECT COUNT(*) FROM users) AS users, " +
+            "(SELECT COUNT(*) FROM likes) AS likes, (SELECT COUNT(*) FROM comments) AS comments, " +
+            "(SELECT COALESCE(SUM(share_count),0) FROM posts) AS shares"
+        ),
+        q(
+            "SELECT n.title, n.author, n.synopsis, " +
+            "(SELECT COUNT(*) FROM chapters c WHERE c.novel_id = n.id) AS chapters " +
+            "FROM novels n ORDER BY n.id DESC LIMIT 12"
+        ),
+        q(
+            "SELECT p.author, p.title, substr(p.content,1,90) AS snippet, p.share_count, " +
+            "(SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes, " +
+            "(SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) AS comments " +
+            "FROM posts p ORDER BY likes DESC, p.id DESC LIMIT 8"
+        ),
+        q(
+            "SELECT author, COUNT(*) AS works FROM (" +
+            "  SELECT author FROM novels UNION ALL SELECT author FROM posts" +
+            ") GROUP BY author ORDER BY works DESC LIMIT 12"
+        ),
+        one(
+            "SELECT (SELECT COUNT(*) FROM posts WHERE author = ?) AS my_posts, " +
+            "(SELECT COUNT(*) FROM novels WHERE author = ?) AS my_novels, " +
+            "(SELECT COUNT(*) FROM likes l JOIN posts p ON p.id = l.post_id WHERE p.author = ?) AS likes_received",
+            username, username, username
+        ),
+    ]);
+
+    const lines = [];
+    lines.push("=== ข้อมูลจริงของเว็บไซต์ ณ ตอนนี้ (ใช้ตอบคำถามเกี่ยวกับเว็บ) ===");
+    if (stats) {
+        lines.push(
+            "ภาพรวม: นิยาย " + stats.novels + " เรื่อง, ตอนทั้งหมด " + stats.chapters + " ตอน, " +
+            "โพสต์ " + stats.posts + " โพสต์, สมาชิกที่สมัคร " + stats.users + " คน (ไม่นับแอดมิน), " +
+            "หัวใจรวม " + stats.likes + ", คอมเมนต์รวม " + stats.comments + ", แชร์รวม " + stats.shares
+        );
+    }
+
+    const nv = (novels && novels.results) || [];
+    if (nv.length) {
+        lines.push("รายชื่อนิยาย:");
+        nv.forEach((n) => {
+            lines.push("- \"" + n.title + "\" โดย " + n.author + " (" + n.chapters + " ตอน)" +
+                (n.synopsis ? " เรื่องย่อ: " + String(n.synopsis).slice(0, 140) : ""));
+        });
+    } else {
+        lines.push("ยังไม่มีนิยายในเว็บ");
+    }
+
+    const au = (authors && authors.results) || [];
+    if (au.length) {
+        lines.push("นักเขียน/ผู้ใช้ที่มีผลงาน: " +
+            au.map((a) => a.author + " (" + a.works + " ชิ้น)").join(", "));
+    }
+
+    const tp = (topPosts && topPosts.results) || [];
+    if (tp.length) {
+        lines.push("โพสต์ที่ได้รับความนิยม:");
+        tp.forEach((p) => {
+            lines.push("- " + (p.title ? "\"" + p.title + "\" " : "") + "โดย " + p.author +
+                " | ❤️ " + p.likes + " | 💬 " + p.comments + " | ↗️ " + p.share_count +
+                (p.snippet ? " | เนื้อหา: " + p.snippet : ""));
+        });
+    }
+
+    if (mine) {
+        lines.push("ข้อมูลของผู้ใช้ที่กำลังคุยกับคุณ (ชื่อ " + username + "): " +
+            "โพสต์ " + mine.my_posts + ", นิยาย " + mine.my_novels + ", ได้รับหัวใจรวม " + mine.likes_received);
+    }
+    lines.push("=== จบข้อมูล ===");
+    lines.push("ถ้าผู้ใช้ถามเรื่องตัวเลขหรือรายชื่อในเว็บ ให้ตอบจากข้อมูลด้านบนเท่านั้น ห้ามเดาเอง " +
+        "ถ้าข้อมูลไม่มีอยู่ด้านบน ให้บอกว่ายังไม่มีข้อมูลส่วนนั้น");
+
+    return lines.join("\n");
+}
+
+async function loadAriaHistory(env, username, limit) {
+    const { results } = await env.DB.prepare(
+        "SELECT role, content FROM aria_messages WHERE username = ? ORDER BY id DESC LIMIT ?"
+    ).bind(username, limit).all();
+    return (results || []).reverse();
+}
 
 async function askAria(request, env) {
     if (!env.AI) return json({ error: "ระบบ AI ยังไม่พร้อมใช้งาน" }, 503);
@@ -94,28 +196,30 @@ async function askAria(request, env) {
     const username = await userFromToken(env, b.token || "");
     if (!username) return json({ error: "กรุณาเข้าสู่ระบบก่อนคุยกับอาเรีย" }, 401);
 
-    const history = Array.isArray(b.messages) ? b.messages : [];
     const message = (b.message || "").trim();
     if (!message) return json({ error: "กรุณาพิมพ์ข้อความ" }, 400);
     if (message.length > 4000) return json({ error: "ข้อความยาวเกินไป" }, 400);
 
-    // เก็บบทสนทนาย้อนหลังไม่เกิน 10 รอบ เพื่อไม่ให้เกินโควตา
-    const trimmed = history
-        .filter((x) => x && (x.role === "user" || x.role === "assistant") && typeof x.content === "string")
-        .slice(-10)
-        .map((x) => ({ role: x.role, content: String(x.content).slice(0, 2000) }));
+    // ความจำถาวร: อ่านบทสนทนาเก่าจากฐานข้อมูล
+    const past = await loadAriaHistory(env, username, 12);
+    const siteContext = await buildSiteContext(env, username);
 
-    const messages = [{ role: "system", content: ARIA_SYSTEM }]
-        .concat(trimmed)
+    const messages = [
+        { role: "system", content: ARIA_SYSTEM },
+        { role: "system", content: siteContext },
+    ]
+        .concat(past.map((x) => ({ role: x.role, content: String(x.content).slice(0, 2000) })))
         .concat([{ role: "user", content: message }]);
 
-    let lastErr = null;
+    let reply = null, usedModel = null, lastErr = null;
     for (const model of ARIA_MODELS) {
         try {
             const out = await env.AI.run(model, { messages, max_tokens: 700, temperature: 0.7 });
-            const reply = (out && (out.response || out.result)) || "";
-            if (reply && String(reply).trim()) {
-                return json({ ok: true, reply: String(reply).trim(), model });
+            const text = (out && (out.response || out.result)) || "";
+            if (text && String(text).trim()) {
+                reply = String(text).trim();
+                usedModel = model;
+                break;
             }
             lastErr = "empty response";
         } catch (e) {
@@ -123,7 +227,41 @@ async function askAria(request, env) {
         }
     }
 
-    return json({ error: "อาเรียตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้งนะ", detail: lastErr }, 502);
+    if (!reply) return json({ error: "อาเรียตอบไม่ได้ในตอนนี้ ลองใหม่อีกครั้งนะ", detail: lastErr }, 502);
+
+    // บันทึกบทสนทนาไว้ถาวร
+    try {
+        await env.DB.batch([
+            env.DB.prepare("INSERT INTO aria_messages (username, role, content) VALUES (?, 'user', ?)")
+                .bind(username, message),
+            env.DB.prepare("INSERT INTO aria_messages (username, role, content) VALUES (?, 'assistant', ?)")
+                .bind(username, reply),
+            // เก็บไว้ไม่เกิน 60 ข้อความล่าสุดต่อคน
+            env.DB.prepare(
+                "DELETE FROM aria_messages WHERE username = ? AND id NOT IN " +
+                "(SELECT id FROM aria_messages WHERE username = ? ORDER BY id DESC LIMIT 60)"
+            ).bind(username, username),
+        ]);
+    } catch (e) { /* ถ้าบันทึกพลาด ก็ยังตอบผู้ใช้ได้ */ }
+
+    return json({ ok: true, reply, model: usedModel });
+}
+
+async function ariaHistory(env, url) {
+    const username = await userFromToken(env, url.searchParams.get("token") || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    const { results } = await env.DB.prepare(
+        "SELECT role, content, created_at FROM aria_messages WHERE username = ? ORDER BY id ASC LIMIT 60"
+    ).bind(username).all();
+    return json({ ok: true, messages: results || [] });
+}
+
+async function ariaClear(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    await env.DB.prepare("DELETE FROM aria_messages WHERE username = ?").bind(username).run();
+    return json({ ok: true });
 }
 
 // ===== Media (R2) =====
@@ -297,6 +435,8 @@ async function listPosts(request, env, url) {
     const viewer = await userFromToken(env, url.searchParams.get("token") || "");
     const { results } = await env.DB.prepare(
         "SELECT p.id, p.author, p.type, p.title, p.content, p.media_key, p.media_type, p.created_at, " +
+        "p.share_count, " +
+        "(SELECT COUNT(*) FROM comments cm WHERE cm.post_id = p.id) AS comment_count, " +
         "(SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count, " +
         "CASE WHEN ? IS NULL THEN 0 ELSE " +
         "  (SELECT COUNT(*) FROM likes l2 WHERE l2.post_id = p.id AND l2.username = ?) END AS liked " +
@@ -357,6 +497,8 @@ async function createPost(request, env) {
     ).bind(res.meta.last_row_id).first();
     post.like_count = 0;
     post.liked = 0;
+    post.comment_count = 0;
+    post.share_count = 0;
     return json({ ok: true, post });
 }
 
@@ -398,7 +540,71 @@ async function deletePost(request, env) {
         try { await env.MEDIA.delete(post.media_key); } catch (e) { /* ignore */ }
     }
     await env.DB.prepare("DELETE FROM likes WHERE post_id = ?").bind(b.id).run();
+    await env.DB.prepare("DELETE FROM comments WHERE post_id = ?").bind(b.id).run();
     await env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(b.id).run();
+    return json({ ok: true });
+}
+
+async function sharePost(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
+    const postId = parseInt(b.id, 10);
+    if (isNaN(postId)) return json({ error: "รหัสโพสต์ไม่ถูกต้อง" }, 400);
+
+    const post = await env.DB.prepare("SELECT id FROM posts WHERE id = ?").bind(postId).first();
+    if (!post) return json({ error: "ไม่พบโพสต์" }, 404);
+
+    await env.DB.prepare("UPDATE posts SET share_count = share_count + 1 WHERE id = ?")
+        .bind(postId).run();
+    const row = await env.DB.prepare("SELECT share_count FROM posts WHERE id = ?").bind(postId).first();
+    return json({ ok: true, share_count: row ? row.share_count : 0 });
+}
+
+// ===== Comments =====
+async function listComments(env, url) {
+    const postId = parseInt(url.searchParams.get("post_id") || "", 10);
+    if (isNaN(postId)) return json({ error: "รหัสโพสต์ไม่ถูกต้อง" }, 400);
+    const { results } = await env.DB.prepare(
+        "SELECT id, post_id, author, content, created_at FROM comments WHERE post_id = ? ORDER BY id ASC LIMIT 200"
+    ).bind(postId).all();
+    return json({ ok: true, comments: results || [] });
+}
+
+async function createComment(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบก่อนคอมเมนต์" }, 401);
+
+    const postId = parseInt(b.post_id, 10);
+    const content = (b.content || "").trim();
+    if (isNaN(postId)) return json({ error: "รหัสโพสต์ไม่ถูกต้อง" }, 400);
+    if (!content) return json({ error: "กรุณาพิมพ์ข้อความ" }, 400);
+    if (content.length > 2000) return json({ error: "ข้อความยาวเกินไป" }, 400);
+
+    const post = await env.DB.prepare("SELECT id FROM posts WHERE id = ?").bind(postId).first();
+    if (!post) return json({ error: "ไม่พบโพสต์" }, 404);
+
+    const res = await env.DB.prepare(
+        "INSERT INTO comments (post_id, author, content) VALUES (?, ?, ?)"
+    ).bind(postId, username, content).run();
+    const comment = await env.DB.prepare(
+        "SELECT id, post_id, author, content, created_at FROM comments WHERE id = ?"
+    ).bind(res.meta.last_row_id).first();
+    return json({ ok: true, comment });
+}
+
+async function deleteComment(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
+
+    const c = await env.DB.prepare("SELECT author FROM comments WHERE id = ?").bind(b.id).first();
+    if (!c) return json({ error: "ไม่พบคอมเมนต์" }, 404);
+    if (c.author !== username && !isAdmin(username))
+        return json({ error: "คุณไม่มีสิทธิ์ลบคอมเมนต์นี้" }, 403);
+
+    await env.DB.prepare("DELETE FROM comments WHERE id = ?").bind(b.id).run();
     return json({ ok: true });
 }
 

@@ -1944,6 +1944,85 @@ body::after {
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.error { border-color: #a8323f; color: #f0c9c9; }
 
+/* ===== คอมเมนต์ ===== */
+.comment-box {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: aria-in 0.22s ease;
+}
+
+.comment-list { display: flex; flex-direction: column; gap: 12px; }
+
+.comment-row { display: flex; gap: 10px; align-items: flex-start; }
+
+.comment-body {
+    flex: 1;
+    background: rgba(10, 10, 15, 0.5);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 9px 13px;
+}
+
+.comment-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 3px; }
+.comment-author { color: var(--ink); font-size: 13.5px; font-weight: 600; }
+.comment-time { color: var(--ink-faint); font-size: 11px; }
+
+.comment-del {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--ink-faint);
+    font-family: var(--font-body);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.comment-del:hover { color: #d97b7b; background: rgba(126, 31, 43, 0.14); }
+
+.comment-text { color: var(--ink); font-size: 14px; line-height: 1.6; font-weight: 300; }
+.comment-empty { color: var(--ink-faint); font-size: 13px; text-align: center; padding: 8px; }
+
+.comment-form { display: flex; gap: 8px; }
+
+.comment-input {
+    flex: 1;
+    background: rgba(10, 10, 15, 0.6);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 13px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.comment-input:focus { border-color: var(--gold-deep); }
+.comment-input::placeholder { color: var(--ink-faint); }
+
+.comment-send {
+    background: linear-gradient(135deg, var(--gold-soft), var(--gold-deep));
+    color: #1a1408;
+    border: none;
+    border-radius: 10px;
+    padding: 0 20px;
+    font-family: var(--font-serif);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.comment-send:active { transform: translateY(1px); }
+.comment-send:disabled { opacity: 0.6; cursor: default; }
+
 /* ===== ปุ่มถูกใจ ===== */
 .like-btn { transition: color 0.2s, background 0.2s, transform 0.2s; }
 .like-btn.liked { color: #e8697d; }

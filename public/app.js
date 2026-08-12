@@ -155,6 +155,7 @@
         if (name === "write") loadMyNovels();
         if (name === "profile") loadProfile();
         if (name === "clips") loadClips();
+        if (name === "aria") loadAriaHistory();
     }
 
     function setupTabs() {
@@ -246,9 +247,42 @@
         });
         footer.appendChild(likeBtn);
 
-        ["💬 คอมเมนต์", "🔖 บันทึก", "↗️ แชร์"].forEach(function (t) {
-            footer.appendChild(el("button", "react-btn", t));
+        // ปุ่มคอมเมนต์ (เปิด/ปิดกล่องคอมเมนต์)
+        const cmtBtn = el("button", "react-btn", "💬 " + (post.comment_count || 0));
+        cmtBtn.addEventListener("click", function () { toggleComments(card, post, cmtBtn); });
+        footer.appendChild(cmtBtn);
+
+        footer.appendChild(el("button", "react-btn", "🔖 บันทึก"));
+
+        // ปุ่มแชร์ (คัดลอกลิงก์ + นับจำนวน)
+        const shareBtn = el("button", "react-btn", "↗️ " + (post.share_count || 0));
+        shareBtn.addEventListener("click", async function () {
+            const link = location.origin + "/dashboard.html#post-" + post.id;
+            let copied = false;
+            try {
+                await navigator.clipboard.writeText(link);
+                copied = true;
+            } catch (e) {
+                const ta = document.createElement("textarea");
+                ta.value = link;
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.select();
+                try { copied = document.execCommand("copy"); } catch (e2) { copied = false; }
+                ta.remove();
+            }
+            const res = await api("/api/posts/share", {
+                method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token, id: post.id }),
+            });
+            if (res.ok && res.data.ok) {
+                post.share_count = res.data.share_count;
+                shareBtn.textContent = "↗️ " + res.data.share_count;
+            }
+            toast(copied ? "คัดลอกลิงก์แล้ว" : "แชร์แล้ว");
         });
+        footer.appendChild(shareBtn);
 
         if (canManage(post.author)) {
             const edit = el("button", "react-btn manage", "✏️ แก้ไข");
@@ -344,6 +378,95 @@
                 msg.textContent = res.data.error || "แก้ไขไม่สำเร็จ";
             }
         });
+    }
+
+    // ---------- คอมเมนต์ ----------
+    async function toggleComments(card, post, cmtBtn) {
+        const existing = card.querySelector(".comment-box");
+        if (existing) { existing.remove(); return; }
+
+        const box = el("div", "comment-box");
+        box.appendChild(el("div", "feed-loading", "กำลังโหลดคอมเมนต์..."));
+        card.appendChild(box);
+
+        const res = await api("/api/comments?post_id=" + encodeURIComponent(post.id));
+        box.innerHTML = "";
+
+        const list = el("div", "comment-list");
+        box.appendChild(list);
+
+        function refreshCount(n) {
+            post.comment_count = n;
+            cmtBtn.textContent = "💬 " + n;
+        }
+
+        function addRow(c) {
+            const row = el("div", "comment-row");
+            row.appendChild(el("div", "avatar sm", initial(c.author)));
+            const bodyWrap = el("div", "comment-body");
+            const head = el("div", "comment-head");
+            head.appendChild(el("span", "comment-author", c.author));
+            head.appendChild(el("span", "comment-time", timeAgo(c.created_at)));
+            if (c.author === me.username || me.role === "admin") {
+                const del = el("button", "comment-del", "ลบ");
+                del.addEventListener("click", async function () {
+                    const yes = await confirmDialog("ลบคอมเมนต์นี้?", "ลบ");
+                    if (!yes) return;
+                    const r = await api("/api/comments/delete", {
+                        method: "POST", headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ token, id: c.id }),
+                    });
+                    if (r.ok && r.data.ok) {
+                        row.remove();
+                        refreshCount(Math.max(0, (post.comment_count || 1) - 1));
+                        if (!list.children.length) list.appendChild(el("div", "comment-empty", "ยังไม่มีคอมเมนต์"));
+                    } else {
+                        toast(r.data.error || "ลบไม่สำเร็จ", true);
+                    }
+                });
+                head.appendChild(del);
+            }
+            bodyWrap.appendChild(head);
+            bodyWrap.appendChild(el("p", "comment-text", c.content));
+            row.appendChild(bodyWrap);
+            list.appendChild(row);
+        }
+
+        const comments = (res.data && res.data.comments) || [];
+        if (comments.length === 0) list.appendChild(el("div", "comment-empty", "ยังไม่มีคอมเมนต์"));
+        else comments.forEach(addRow);
+        refreshCount(comments.length);
+
+        // ช่องเขียนคอมเมนต์
+        const form = el("div", "comment-form");
+        const input = el("input", "comment-input");
+        input.type = "text";
+        input.placeholder = "เขียนคอมเมนต์...";
+        const send = el("button", "comment-send", "ส่ง");
+        async function submit() {
+            const text = input.value.trim();
+            if (!text) return;
+            send.disabled = true;
+            const r = await api("/api/comments", {
+                method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token, post_id: post.id, content: text }),
+            });
+            send.disabled = false;
+            if (r.ok && r.data.ok) {
+                input.value = "";
+                const empty = list.querySelector(".comment-empty");
+                if (empty) empty.remove();
+                addRow(r.data.comment);
+                refreshCount((post.comment_count || 0) + 1);
+            } else {
+                toast(r.data.error || "คอมเมนต์ไม่สำเร็จ", true);
+            }
+        }
+        send.addEventListener("click", submit);
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+        form.appendChild(input);
+        form.appendChild(send);
+        box.appendChild(form);
     }
 
     async function deletePost(card, post) {
@@ -980,8 +1103,22 @@
     }
 
     // ---------- อาเรีย (AI) ----------
-    let ariaHistory = [];
     let ariaBusy = false;
+    let ariaLoaded = false;
+
+    // โหลดบทสนทนาเก่าจากฐานข้อมูล (ความจำถาวรข้ามวัน)
+    async function loadAriaHistory() {
+        if (ariaLoaded) return;
+        ariaLoaded = true;
+        const box = document.getElementById("ariaMessages");
+        if (!box) return;
+        const res = await api("/api/aria/history?token=" + encodeURIComponent(token));
+        const msgs = (res.data && res.data.messages) || [];
+        if (msgs.length === 0) return;   // ปล่อยข้อความต้อนรับไว้
+        box.innerHTML = "";
+        msgs.forEach(function (m) { box.appendChild(ariaBubble(m.role, m.content)); });
+        box.scrollTop = box.scrollHeight;
+    }
 
     function setupAria() {
         const openBtn = document.getElementById("btnAria");
@@ -1011,12 +1148,16 @@
         });
 
         if (clearBtn) clearBtn.addEventListener("click", async function () {
-            const yes = await confirmDialog("ล้างบทสนทนากับอาเรียทั้งหมด?", "ล้าง");
+            const yes = await confirmDialog("ล้างบทสนทนากับอาเรียทั้งหมด? อาเรียจะลืมทุกอย่างที่คุยกันมา", "ล้าง");
             if (!yes) return;
-            ariaHistory = [];
+            const res = await api("/api/aria/clear", {
+                method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token }),
+            });
             const box = document.getElementById("ariaMessages");
             box.innerHTML = "";
             box.appendChild(el("div", "aria-empty", "เริ่มบทสนทนาใหม่ได้เลยค่ะ"));
+            if (!(res.ok && res.data.ok)) toast("ล้างบทสนทนาไม่สำเร็จ", true);
         });
     }
 
@@ -1062,10 +1203,11 @@
         box.appendChild(typing);
         box.scrollTop = box.scrollHeight;
 
+        // บทสนทนาเก่าอยู่ในฐานข้อมูลแล้ว เซิร์ฟเวอร์จะดึงเองอัตโนมัติ
         const res = await api("/api/aria", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ token, message: text, messages: ariaHistory }),
+            body: JSON.stringify({ token, message: text }),
         });
 
         typing.remove();
@@ -1073,9 +1215,6 @@
 
         if (res.ok && res.data.ok) {
             box.appendChild(ariaBubble("assistant", res.data.reply));
-            ariaHistory.push({ role: "user", content: text });
-            ariaHistory.push({ role: "assistant", content: res.data.reply });
-            if (ariaHistory.length > 20) ariaHistory = ariaHistory.slice(-20);
         } else {
             const errRow = el("div", "aria-row bot");
             errRow.appendChild(el("div", "aria-avatar sm", "อ"));
