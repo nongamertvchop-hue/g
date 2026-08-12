@@ -35,6 +35,7 @@
             <!-- แท็บ ใต้ช่องค้นหา -->
             <div class="tab-bar">
                 <button class="tab-btn active" id="tabFeed">แท็บ</button>
+                <button class="tab-btn" id="tabGlobal">แชทโลก</button>
                 <button class="tab-btn" id="tabMenu">แท็บแท็บ</button>
             </div>
         </div>
@@ -116,6 +117,23 @@
                 </div>
             </section>
 
+            <!-- ===== แชทโลก ===== -->
+            <section id="view-global" class="view" style="display:none">
+                <div class="global-card">
+                    <div class="global-head">
+                        <h2 class="page-title">แชทโลก</h2>
+                        <span class="global-note">ทุกคนคุยกันได้ · ประวัติจะหายเมื่อออกจากเว็บ</span>
+                    </div>
+                    <div class="global-window" id="globalWindow">
+                        <div class="feed-loading">กำลังโหลด...</div>
+                    </div>
+                    <div class="global-input">
+                        <input type="text" id="globalText" placeholder="พิมพ์ข้อความถึงทุกคน..." maxlength="500">
+                        <button id="globalSend" type="button">ส่ง</button>
+                    </div>
+                </div>
+            </section>
+
             <!-- ===== แท็บแท็บ: เมนู 6 ปุ่ม ===== -->
             <section id="view-menu" class="view" style="display:none">
                 <div class="menu-grid">
@@ -166,10 +184,9 @@
                 <h2 class="page-title">ห้องแชท</h2>
                 <div class="chat-layout">
                     <div class="chat-side">
-                        <div class="my-id-box">ไอดีของคุณ: <b id="myIdLabel">—</b> <span class="my-id-hint">(ให้เพื่อนใช้เพิ่มคุณ)</span></div>
+                        <div class="my-id-box">นามแฝงของคุณ: <b id="myIdLabel">—</b> <span class="my-id-hint">(ให้เพื่อนใช้เพิ่มคุณ)</span></div>
                         <div class="add-friend">
-                            <input type="text" id="friendName" placeholder="ชื่อผู้ใช้เพื่อน">
-                            <input type="text" id="friendId" placeholder="ไอดี (ตัวเลข)" inputmode="numeric">
+                            <input type="text" id="friendName" placeholder="นามแฝงเพื่อน เช่น #123456789">
                             <button id="addFriendBtn">เพิ่มเพื่อน</button>
                         </div>
                         <div id="addFriendMsg" class="composer-msg"></div>
@@ -232,9 +249,15 @@
                     <div class="profile-info">
                         <h3 class="profile-name" id="pfName">—</h3>
                         <div class="profile-meta">
-                            <span>ไอดี: <b id="pfId">—</b></span>
+                            <span>นามแฝง: <b id="pfAlias">—</b></span>
                             <span>สถานะ: <b id="pfRole">—</b></span>
                         </div>
+                        <div class="alias-edit">
+                            <input type="text" id="aliasInput" placeholder="เปลี่ยนนามแฝง" maxlength="24">
+                            <button id="aliasSave" type="button">บันทึก</button>
+                        </div>
+                        <div id="aliasMsg" class="composer-msg"></div>
+                        <p class="privacy-note">🔒 ชื่อผู้ใช้จริงของคุณถูกซ่อนจากทุกคน คนอื่นเห็นเพียงนามแฝงนี้</p>
                         <div class="profile-stats">
                             <span><b id="pfPostCount">0</b> โพสต์</span>
                             <span><b id="pfNovelCount">0</b> นิยาย</span>

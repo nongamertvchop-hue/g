@@ -34,8 +34,10 @@
         return Math.floor(diff / 86400) + " วันที่แล้ว";
     }
 
-    function canManage(author) {
-        return author === me.username || me.role === "admin";
+    // ใช้ธง is_mine จากเซิร์ฟเวอร์ เพราะชื่อผู้เขียนที่ส่งมาเป็น "นามแฝง" ไม่ใช่ชื่อผู้ใช้จริง
+    function canManage(item) {
+        if (!item) return false;
+        return !!item.is_mine || me.role === "admin";
     }
 
     // กล่องยืนยันในหน้าเว็บเอง — ไม่ใช้ window.confirm เพราะบางเบราว์เซอร์บล็อก
@@ -97,13 +99,14 @@
         }
         if (meRes.ok && meRes.data.ok) {
             me.username = meRes.data.username;
+            me.alias = meRes.data.alias;
             me.id = meRes.data.id;
             me.role = meRes.data.role;
         }
 
-        const ch = initial(me.username);
+        const ch = initial((me.alias || me.username).replace("#", ""));
         document.getElementById("myAvatar").textContent = ch;
-        document.getElementById("myAvatar").title = me.username;
+        document.getElementById("myAvatar").title = me.alias || "";
         document.getElementById("composerAvatar").textContent = ch;
 
         document.getElementById("logoutBtn").addEventListener("click", async function (e) {
@@ -126,6 +129,7 @@
         setupMedia();
         setupAria();
         setupNotifications();
+        setupGlobal();
         setupWrite();
         setupChatControls();
         setupSidebarNav();
@@ -134,7 +138,7 @@
     });
 
     // ---------- view router ----------
-    const featureViews = ["feed", "menu", "novels", "chat", "write", "profile", "clips", "aria"];
+    const featureViews = ["feed", "global", "menu", "novels", "chat", "write", "profile", "clips", "aria"];
 
     function showView(name) {
         featureViews.forEach(function (v) {
@@ -143,12 +147,15 @@
         });
 
         const tabFeed = document.getElementById("tabFeed");
+        const tabGlobal = document.getElementById("tabGlobal");
         const tabMenu = document.getElementById("tabMenu");
         tabFeed.classList.toggle("active", name === "feed");
-        tabMenu.classList.toggle("active", name !== "feed");
+        tabGlobal.classList.toggle("active", name === "global");
+        tabMenu.classList.toggle("active", name !== "feed" && name !== "global");
 
         // ปิดการเชื่อมต่อแชทเมื่อออกจากหน้าแชท
         if (name !== "chat") { closeSocket(); stopChatPoll(); }
+        if (name !== "global") stopGlobalPoll();
 
         if (name === "feed") loadPosts();
         if (name === "novels") loadNovels();
@@ -157,10 +164,12 @@
         if (name === "profile") loadProfile();
         if (name === "clips") loadClips();
         if (name === "aria") loadAriaHistory();
+        if (name === "global") { loadGlobal(true); startGlobalPoll(); }
     }
 
     function setupTabs() {
         document.getElementById("tabFeed").addEventListener("click", () => showView("feed"));
+        document.getElementById("tabGlobal").addEventListener("click", () => showView("global"));
         document.getElementById("tabMenu").addEventListener("click", () => showView("menu"));
     }
 
@@ -285,7 +294,7 @@
         });
         footer.appendChild(shareBtn);
 
-        if (canManage(post.author)) {
+        if (canManage(post)) {
             const edit = el("button", "react-btn manage", "✏️ แก้ไข");
             const del = el("button", "react-btn manage danger", "🗑️ ลบ");
             edit.addEventListener("click", () => startEditPost(card, post));
@@ -390,7 +399,8 @@
         box.appendChild(el("div", "feed-loading", "กำลังโหลดคอมเมนต์..."));
         card.appendChild(box);
 
-        const res = await api("/api/comments?post_id=" + encodeURIComponent(post.id));
+        const res = await api("/api/comments?post_id=" + encodeURIComponent(post.id) +
+            "&token=" + encodeURIComponent(token));
         box.innerHTML = "";
 
         const list = el("div", "comment-list");
@@ -408,7 +418,7 @@
             const head = el("div", "comment-head");
             head.appendChild(el("span", "comment-author", c.author));
             head.appendChild(el("span", "comment-time", timeAgo(c.created_at)));
-            if (c.author === me.username || me.role === "admin") {
+            if (canManage(c)) {
                 const del = el("button", "comment-del", "ลบ");
                 del.addEventListener("click", async function () {
                     const yes = await confirmDialog("ลบคอมเมนต์นี้?", "ลบ");
@@ -831,7 +841,7 @@
         });
         meta.appendChild(followBtn);
 
-        if (canManage(novel.author)) {
+        if (canManage(novel)) {
             const del = el("button", "react-btn manage danger", "🗑️ ลบนิยาย");
             del.addEventListener("click", async function () {
                 const yes = await confirmDialog("ลบนิยายทั้งเรื่อง รวมทุกตอน? การลบไม่สามารถย้อนกลับได้", "ลบนิยาย");
@@ -954,7 +964,7 @@
         const listWrap = document.getElementById("myNovelList");
         select.innerHTML = "";
         listWrap.innerHTML = "";
-        const mine = (res.data.novels || []).filter(n => n.author === me.username);
+        const mine = (res.data.novels || []).filter(n => n.is_mine);
         if (mine.length === 0) {
             const opt = el("option", null, "— ยังไม่มีนิยาย —");
             opt.value = "";
@@ -982,18 +992,16 @@
 
     function setupChatControls() {
         document.getElementById("addFriendBtn").addEventListener("click", async function () {
-            const name = document.getElementById("friendName").value.trim();
-            const fid = document.getElementById("friendId").value.trim();
+            const aliasVal = document.getElementById("friendName").value.trim();
             const msg = document.getElementById("addFriendMsg");
             msg.textContent = "";
-            if (!name || !fid) { msg.textContent = "กรอกชื่อและไอดีให้ครบ"; return; }
+            if (!aliasVal) { msg.textContent = "กรอกนามแฝงของเพื่อน"; return; }
             const res = await api("/api/friends/add", {
                 method: "POST", headers: { "content-type": "application/json" },
-                body: JSON.stringify({ token, username: name, id: fid }),
+                body: JSON.stringify({ token, alias: aliasVal }),
             });
             if (res.ok && res.data.ok) {
                 document.getElementById("friendName").value = "";
-                document.getElementById("friendId").value = "";
                 msg.className = "composer-msg ok";
                 msg.textContent = "เพิ่มเพื่อนสำเร็จ!";
                 loadFriends();
@@ -1010,7 +1018,7 @@
     }
 
     async function loadFriends() {
-        document.getElementById("myIdLabel").textContent = me.id === 0 ? "ผู้ดูแลระบบ" : ("#" + me.id);
+        document.getElementById("myIdLabel").textContent = me.alias || "—";
         const res = await api("/api/friends?token=" + encodeURIComponent(token));
         const list = document.getElementById("friendList");
         list.innerHTML = "";
@@ -1021,12 +1029,12 @@
         }
         friends.forEach(function (f) {
             const item = el("button", "friend-row");
-            item.appendChild(el("div", "avatar sm", initial(f.friend_username)));
+            item.appendChild(el("div", "avatar sm", initial((f.alias || "?").replace("#", ""))));
             const info = el("div", "friend-row-info");
-            info.appendChild(el("span", "friend-row-name", f.friend_username));
-            info.appendChild(el("span", "friend-row-id", "#" + f.friend_id));
+            info.appendChild(el("span", "friend-row-name", f.alias));
+            if (f.real_username) info.appendChild(el("span", "friend-row-id", "🔑 " + f.real_username));
             item.appendChild(info);
-            item.addEventListener("click", () => openChat(f.friend_username, item));
+            item.addEventListener("click", () => openChat(f.alias, item));
             list.appendChild(item);
         });
     }
@@ -1057,7 +1065,7 @@
 
     function appendMsg(m) {
         const box = document.getElementById("chatMessages");
-        const cls = m.sender === me.username ? "chat-msg me" : "chat-msg them";
+        const cls = m.mine ? "chat-msg me" : "chat-msg them";
         box.appendChild(el("div", cls, m.content));
         box.scrollTop = box.scrollHeight;
     }
@@ -1128,6 +1136,136 @@
 
     function stopChatPoll() {
         if (chatPoll) { clearInterval(chatPoll); chatPoll = null; }
+    }
+
+    // ---------- แชทโลก ----------
+    let globalLastId = 0;
+    let globalPoll = null;
+
+    function setupGlobal() {
+        const input = document.getElementById("globalText");
+        const send = document.getElementById("globalSend");
+        if (!input || !send) return;
+        send.addEventListener("click", sendGlobal);
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") sendGlobal(); });
+    }
+
+    function globalRow(m) {
+        const row = el("div", "gm-row" + (m.mine ? " mine" : ""));
+        // คนส่งจะไม่เห็นโปรไฟล์ของตัวเอง แต่เห็นของคนอื่นและกดดูได้
+        if (!m.mine) {
+            const av = el("button", "avatar sm gm-avatar", (m.alias || "?").replace("#", "").charAt(0).toUpperCase());
+            av.title = "ดูโปรไฟล์ " + m.alias;
+            av.addEventListener("click", () => openProfileCard(m.alias));
+            row.appendChild(av);
+        }
+        const bubble = el("div", "gm-bubble");
+        if (!m.mine) {
+            const name = el("button", "gm-alias", m.alias);
+            name.addEventListener("click", () => openProfileCard(m.alias));
+            bubble.appendChild(name);
+        }
+        bubble.appendChild(el("div", "gm-text", m.content));
+        bubble.appendChild(el("div", "gm-time", timeAgo(m.created_at)));
+        row.appendChild(bubble);
+        return row;
+    }
+
+    function appendGlobal(list) {
+        const box = document.getElementById("globalWindow");
+        const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+        list.forEach(function (m) {
+            if (m.id <= globalLastId) return;
+            globalLastId = m.id;
+            box.appendChild(globalRow(m));
+        });
+        if (nearBottom) box.scrollTop = box.scrollHeight;
+    }
+
+    async function loadGlobal(initial) {
+        const box = document.getElementById("globalWindow");
+        const res = await api("/api/global?token=" + encodeURIComponent(token) +
+            (initial ? "" : "&since=" + globalLastId));
+        if (!res.ok || !res.data.ok) {
+            if (initial) box.innerHTML = '<div class="feed-loading">โหลดแชทไม่สำเร็จ</div>';
+            return;
+        }
+        const msgs = res.data.messages || [];
+        if (initial) {
+            box.innerHTML = "";
+            globalLastId = 0;
+            if (!msgs.length) box.appendChild(el("div", "feed-loading", "ยังไม่มีใครพิมพ์ มาเริ่มทักทายกันเลย!"));
+        }
+        if (msgs.length) {
+            const empty = box.querySelector(".feed-loading");
+            if (empty) empty.remove();
+        }
+        appendGlobal(msgs);
+    }
+
+    async function sendGlobal() {
+        const input = document.getElementById("globalText");
+        const btn = document.getElementById("globalSend");
+        const text = input.value.trim();
+        if (!text) return;
+        btn.disabled = true;
+        const res = await api("/api/global", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ token, content: text }),
+        });
+        btn.disabled = false;
+        if (res.ok && res.data.ok) {
+            input.value = "";
+            const box = document.getElementById("globalWindow");
+            const empty = box.querySelector(".feed-loading");
+            if (empty) empty.remove();
+            appendGlobal([res.data.message]);
+            if (res.data.censored) toast("ข้อความมีคำไม่เหมาะสม ระบบเซ็นเซอร์ให้แล้ว", true);
+        } else {
+            toast(res.data.error || "ส่งข้อความไม่สำเร็จ", true);
+        }
+    }
+
+    function startGlobalPoll() {
+        stopGlobalPoll();
+        globalPoll = setInterval(() => loadGlobal(false), 4000);
+    }
+
+    function stopGlobalPoll() {
+        if (globalPoll) { clearInterval(globalPoll); globalPoll = null; }
+    }
+
+    // ---------- การ์ดโปรไฟล์สาธารณะ ----------
+    async function openProfileCard(alias) {
+        const res = await api("/api/profile?token=" + encodeURIComponent(token) +
+            "&alias=" + encodeURIComponent(alias));
+        if (!res.ok || !res.data.ok) { toast(res.data.error || "เปิดโปรไฟล์ไม่สำเร็จ", true); return; }
+        const p = res.data.profile;
+
+        const overlay = el("div", "modal-overlay");
+        const box = el("div", "modal-box profile-card-modal");
+        box.appendChild(el("div", "avatar profile-avatar", (p.alias || "?").replace("#", "").charAt(0).toUpperCase()));
+        box.appendChild(el("h3", "profile-name", p.alias));
+        if (p.role === "admin") box.appendChild(el("span", "profile-badge", "ผู้ดูแลระบบ"));
+        const stats = el("div", "profile-stats");
+        [["โพสต์", p.posts], ["นิยาย", p.novels], ["หัวใจที่ได้รับ", p.likes_received]].forEach(function (s) {
+            const item = el("span");
+            item.appendChild(el("b", null, String(s[1])));
+            item.appendChild(document.createTextNode(" " + s[0]));
+            stats.appendChild(item);
+        });
+        box.appendChild(stats);
+        if (p.username) {
+            box.appendChild(el("p", "admin-reveal", "🔑 ชื่อผู้ใช้จริง (เห็นเฉพาะแอดมิน): " + p.username));
+        }
+        const close = el("button", "modal-btn", "ปิด");
+        const row = el("div", "modal-actions");
+        row.appendChild(close);
+        box.appendChild(row);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        close.addEventListener("click", () => overlay.remove());
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
     }
 
     // ---------- การแจ้งเตือน (กระดิ่ง) ----------
@@ -1567,15 +1705,43 @@
 
     // ---------- profile ----------
     async function loadProfile() {
-        document.getElementById("pfName").textContent = me.username;
-        document.getElementById("pfId").textContent = me.id === 0 ? "ผู้ดูแลระบบ" : ("#" + me.id);
+        document.getElementById("pfName").textContent = me.alias || me.username;
+        document.getElementById("pfAlias").textContent = me.alias || "—";
         document.getElementById("pfRole").textContent = me.role === "admin" ? "แอดมิน / เจ้าของ" : "สมาชิก";
-        document.getElementById("pfAvatar").textContent = initial(me.username);
+        document.getElementById("pfAvatar").textContent = initial((me.alias || me.username).replace("#", ""));
+
+        const aliasInput = document.getElementById("aliasInput");
+        if (aliasInput && !aliasInput.dataset.wired) {
+            aliasInput.dataset.wired = "1";
+            aliasInput.value = me.alias || "";
+            document.getElementById("aliasSave").addEventListener("click", async function () {
+                const msg = document.getElementById("aliasMsg");
+                const val = aliasInput.value.trim();
+                msg.className = "composer-msg";
+                if (!val) { msg.textContent = "กรุณากรอกนามแฝง"; return; }
+                const r = await api("/api/alias", {
+                    method: "POST", headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ token, alias: val }),
+                });
+                if (r.ok && r.data.ok) {
+                    me.alias = r.data.alias;
+                    msg.className = "composer-msg ok";
+                    msg.textContent = "เปลี่ยนนามแฝงแล้ว";
+                    toast("เปลี่ยนนามแฝงเป็น " + r.data.alias);
+                    loadProfile();
+                    const av = document.getElementById("myAvatar");
+                    av.textContent = initial(r.data.alias.replace("#", ""));
+                    av.title = r.data.alias;
+                } else {
+                    msg.textContent = r.data.error || "เปลี่ยนนามแฝงไม่สำเร็จ";
+                }
+            });
+        }
 
         const postsRes = await api("/api/posts");
         const novelsRes = await api("/api/novels");
-        const myPosts = (postsRes.data.posts || []).filter(p => p.author === me.username);
-        const myNovels = (novelsRes.data.novels || []).filter(n => n.author === me.username);
+        const myPosts = (postsRes.data.posts || []).filter(p => p.is_mine);
+        const myNovels = (novelsRes.data.novels || []).filter(n => n.is_mine);
 
         document.getElementById("pfPostCount").textContent = myPosts.length;
         document.getElementById("pfNovelCount").textContent = myNovels.length;

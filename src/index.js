@@ -63,6 +63,12 @@ async function handleApi(request, env, url) {
     if (p === "/api/login" && m === "POST") return login(request, env);
     if (p === "/api/logout" && m === "POST") return logout(request, env);
     if (p === "/api/me" && m === "GET") return me(request, env, url);
+    if (p === "/api/alias" && m === "POST") return changeAlias(request, env);
+    if (p === "/api/profile" && m === "GET") return publicProfile(env, url);
+
+    // แชทโลก
+    if (p === "/api/global" && m === "GET") return listGlobal(env, url);
+    if (p === "/api/global" && m === "POST") return sendGlobal(request, env);
 
     // posts
     if (p === "/api/posts" && m === "GET") return listPosts(request, env, url);
@@ -78,7 +84,7 @@ async function handleApi(request, env, url) {
     if (p === "/api/comments/delete" && m === "POST") return deleteComment(request, env);
 
     // novels
-    if (p === "/api/novels" && m === "GET") return listNovels(env);
+    if (p === "/api/novels" && m === "GET") return listNovels(env, url);
     if (p === "/api/novels/get" && m === "GET") return getNovel(env, url);
     if (p === "/api/novels/create" && m === "POST") return createNovel(request, env);
     if (p === "/api/novels/delete" && m === "POST") return deleteNovel(request, env);
@@ -173,8 +179,18 @@ async function buildSiteContext(env, username) {
         ),
     ]);
 
+    // แปลงชื่อผู้ใช้จริงเป็นนามแฝงก่อนส่งให้ AI อ่าน
+    const nameList = []
+        .concat(((novels && novels.results) || []).map((n) => n.author))
+        .concat(((topPosts && topPosts.results) || []).map((p) => p.author))
+        .concat(((authors && authors.results) || []).map((a) => a.author))
+        .concat([username]);
+    const aMap = await aliasMap(env, nameList);
+    const show = (n) => aMap[n] || n;
+
     const lines = [];
     lines.push("=== ข้อมูลจริงของเว็บไซต์ ณ ตอนนี้ (ใช้ตอบคำถามเกี่ยวกับเว็บ) ===");
+    lines.push("หมายเหตุ: ผู้ใช้ทุกคนถูกเรียกด้วย 'นามแฝง' เท่านั้น ห้ามเปิดเผยหรือคาดเดาชื่อผู้ใช้จริง");
     if (stats) {
         lines.push(
             "ภาพรวม: นิยาย " + stats.novels + " เรื่อง, ตอนทั้งหมด " + stats.chapters + " ตอน, " +
@@ -187,7 +203,7 @@ async function buildSiteContext(env, username) {
     if (nv.length) {
         lines.push("รายชื่อนิยาย:");
         nv.forEach((n) => {
-            lines.push("- \"" + n.title + "\" โดย " + n.author + " (" + n.chapters + " ตอน)" +
+            lines.push("- \"" + n.title + "\" โดย " + show(n.author) + " (" + n.chapters + " ตอน)" +
                 (n.synopsis ? " เรื่องย่อ: " + String(n.synopsis).slice(0, 140) : ""));
         });
     } else {
@@ -197,21 +213,21 @@ async function buildSiteContext(env, username) {
     const au = (authors && authors.results) || [];
     if (au.length) {
         lines.push("นักเขียน/ผู้ใช้ที่มีผลงาน: " +
-            au.map((a) => a.author + " (" + a.works + " ชิ้น)").join(", "));
+            au.map((a) => show(a.author) + " (" + a.works + " ชิ้น)").join(", "));
     }
 
     const tp = (topPosts && topPosts.results) || [];
     if (tp.length) {
         lines.push("โพสต์ที่ได้รับความนิยม:");
         tp.forEach((p) => {
-            lines.push("- " + (p.title ? "\"" + p.title + "\" " : "") + "โดย " + p.author +
+            lines.push("- " + (p.title ? "\"" + p.title + "\" " : "") + "โดย " + show(p.author) +
                 " | ❤️ " + p.likes + " | 💬 " + p.comments + " | ↗️ " + p.share_count +
                 (p.snippet ? " | เนื้อหา: " + p.snippet : ""));
         });
     }
 
     if (mine) {
-        lines.push("ข้อมูลของผู้ใช้ที่กำลังคุยกับคุณ (ชื่อ " + username + "): " +
+        lines.push("ข้อมูลของผู้ใช้ที่กำลังคุยกับคุณ (นามแฝง " + show(username) + "): " +
             "โพสต์ " + mine.my_posts + ", นิยาย " + mine.my_novels + ", ได้รับหัวใจรวม " + mine.likes_received);
     }
     lines.push("=== จบข้อมูล ===");
@@ -489,14 +505,219 @@ async function handleWs(request, env, url) {
     if (request.headers.get("Upgrade") !== "websocket")
         return new Response("expected websocket", { status: 426 });
     const username = await userFromToken(env, url.searchParams.get("token") || "");
-    const withUser = (url.searchParams.get("with") || "").trim();
-    if (!username || !withUser) return new Response("unauthorized", { status: 401 });
+    const withAlias = (url.searchParams.get("with") || "").trim();
+    if (!username || !withAlias) return new Response("unauthorized", { status: 401 });
+    const withUser = await usernameFromAlias(env, withAlias);
+    if (!withUser) return new Response("not found", { status: 404 });
 
     const roomId = roomIdFor(username, withUser);
     const doUrl = new URL(request.url);
     doUrl.searchParams.set("user", username);
     const stub = env.CHAT.get(env.CHAT.idFromName(roomId));
     return stub.fetch(new Request(doUrl.toString(), request));
+}
+
+// ===== นามแฝง (ซ่อนชื่อผู้ใช้จริงจากทุกคน ยกเว้นแอดมิน) =====
+function randomAlias() {
+    let d = "";
+    const buf = crypto.getRandomValues(new Uint8Array(9));
+    for (let i = 0; i < 9; i++) d += (buf[i] % 10).toString();
+    return "#" + d;
+}
+
+async function ensureAlias(env, username) {
+    const row = await env.DB.prepare("SELECT alias FROM users WHERE username = ?").bind(username).first();
+    if (row && row.alias) return row.alias;
+    for (let i = 0; i < 6; i++) {
+        const a = randomAlias();
+        try {
+            await env.DB.prepare("UPDATE users SET alias = ? WHERE username = ?").bind(a, username).run();
+            return a;
+        } catch (e) { /* ชนกัน สุ่มใหม่ */ }
+    }
+    return null;
+}
+
+// แปลงชื่อผู้ใช้จริง -> นามแฝง สำหรับส่งออกทาง API
+async function aliasMap(env, names) {
+    const uniq = [...new Set((names || []).filter(Boolean))];
+    const map = {};
+    if (!uniq.length) return map;
+    const marks = uniq.map(() => "?").join(",");
+    const { results } = await env.DB.prepare(
+        "SELECT username, alias FROM users WHERE username IN (" + marks + ")"
+    ).bind(...uniq).all();
+    (results || []).forEach((r) => { if (r.alias) map[r.username] = r.alias; });
+    // ชื่อที่ไม่ใช่สมาชิกจริง (เนื้อหาตัวอย่าง) ให้แสดงตามเดิม
+    uniq.forEach((u) => { if (!map[u]) map[u] = u; });
+    return map;
+}
+
+async function usernameFromAlias(env, alias) {
+    const row = await env.DB.prepare("SELECT username FROM users WHERE alias = ?").bind(alias).first();
+    return row ? row.username : null;
+}
+
+// ===== ตัวกรองคำหยาบ =====
+const BAD_WORDS = [
+    // ไทย
+    "เหี้ย", "สัส", "สาด", "ควย", "หี", "เย็ด", "แตด", "ระยำ", "ชิบหาย", "ฉิบหาย",
+    "อีดอก", "กะหรี่", "แม่ง", "มึง", "กู", "ไอ้เวร", "อีเวร", "สันดาน", "ไอ้สัตว์",
+    "หน้าหี", "จัญไร", "ตอแหล", "ดอกทอง", "เงี่ยน", "ล่อกัน", "ขายตัว",
+    // อังกฤษ
+    "fuck", "shit", "bitch", "asshole", "cunt", "dick", "pussy", "whore", "slut",
+    "bastard", "motherfucker", "nigger", "faggot", "retard",
+];
+
+function censor(text) {
+    let out = String(text);
+    let hits = 0;
+    for (const w of BAD_WORDS) {
+        // ไทยไม่มีขอบเขตคำ จึงแทนที่ตรง ๆ แบบไม่สนตัวพิมพ์
+        const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+        out = out.replace(re, (m) => { hits++; return "*".repeat(m.length); });
+    }
+    return { text: out, censored: hits > 0 };
+}
+
+// ===== แชทโลก =====
+const GLOBAL_KEEP = 200;   // เก็บข้อความล่าสุดเท่านี้ กันเว็บช้า
+
+async function listGlobal(env, url) {
+    const viewer = await userFromToken(env, url.searchParams.get("token") || "");
+    if (!viewer) return json({ error: "unauthorized" }, 401);
+
+    const since = parseInt(url.searchParams.get("since") || "0", 10) || 0;
+    let rows;
+    if (since > 0) {
+        const r = await env.DB.prepare(
+            "SELECT id, username, content, created_at FROM global_messages WHERE id > ? ORDER BY id ASC LIMIT 100"
+        ).bind(since).all();
+        rows = r.results || [];
+    } else {
+        const r = await env.DB.prepare(
+            "SELECT id, username, content, created_at FROM global_messages ORDER BY id DESC LIMIT 50"
+        ).all();
+        rows = (r.results || []).reverse();
+    }
+
+    const map = await aliasMap(env, rows.map((m) => m.username));
+    const isAdminViewer = await isAdmin(env, viewer);
+    const messages = rows.map((m) => ({
+        id: m.id,
+        alias: map[m.username] || m.username,
+        mine: m.username === viewer,
+        content: m.content,
+        created_at: m.created_at,
+        username: isAdminViewer ? m.username : undefined,
+    }));
+    return json({ ok: true, messages });
+}
+
+async function sendGlobal(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
+
+    const raw = (b.content || "").trim();
+    if (!raw) return json({ error: "กรุณาพิมพ์ข้อความ" }, 400);
+    if (raw.length > 500) return json({ error: "ข้อความยาวเกินไป (ไม่เกิน 500 ตัวอักษร)" }, 400);
+
+    // กันสแปม: ส่งได้ไม่เกิน 5 ข้อความใน 10 วินาที
+    const recent = await env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM global_messages WHERE username = ? AND created_at > datetime('now','-10 seconds')"
+    ).bind(username).first();
+    if (recent && recent.c >= 5) return json({ error: "ส่งข้อความถี่เกินไป พักสักครู่นะ" }, 429);
+
+    const { text, censored } = censor(raw);
+
+    const res = await env.DB.prepare(
+        "INSERT INTO global_messages (username, content) VALUES (?, ?)"
+    ).bind(username, text).run();
+
+    // ลบข้อความเก่าทิ้ง เก็บแค่ล่าสุด
+    try {
+        await env.DB.prepare(
+            "DELETE FROM global_messages WHERE id NOT IN (SELECT id FROM global_messages ORDER BY id DESC LIMIT ?)"
+        ).bind(GLOBAL_KEEP).run();
+    } catch (e) { /* ignore */ }
+
+    const alias = await ensureAlias(env, username);
+    return json({
+        ok: true,
+        censored,
+        message: {
+            id: res.meta.last_row_id,
+            alias: alias || username,
+            mine: true,
+            content: text,
+            created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+        },
+    });
+}
+
+// ===== โปรไฟล์สาธารณะ (ดูด้วยนามแฝง) =====
+async function publicProfile(env, url) {
+    const viewer = await userFromToken(env, url.searchParams.get("token") || "");
+    if (!viewer) return json({ error: "unauthorized" }, 401);
+
+    const alias = (url.searchParams.get("alias") || "").trim();
+    if (!alias) return json({ error: "ไม่พบนามแฝง" }, 400);
+
+    const row = await env.DB.prepare(
+        "SELECT id, username, alias, role, created_at FROM users WHERE alias = ?"
+    ).bind(alias).first();
+    if (!row) return json({ error: "ไม่พบผู้ใช้นี้" }, 404);
+
+    const stats = await env.DB.prepare(
+        "SELECT (SELECT COUNT(*) FROM posts WHERE author = ?) AS posts, " +
+        "(SELECT COUNT(*) FROM novels WHERE author = ?) AS novels, " +
+        "(SELECT COUNT(*) FROM likes l JOIN posts p ON p.id = l.post_id WHERE p.author = ?) AS likes_received"
+    ).bind(row.username, row.username, row.username).first();
+
+    const viewerIsAdmin = await isAdmin(env, viewer);
+    return json({
+        ok: true,
+        profile: {
+            alias: row.alias,
+            role: row.role,
+            joined: row.created_at,
+            posts: stats ? stats.posts : 0,
+            novels: stats ? stats.novels : 0,
+            likes_received: stats ? stats.likes_received : 0,
+            // ชื่อผู้ใช้จริงเปิดให้เห็นเฉพาะแอดมินเท่านั้น
+            username: viewerIsAdmin ? row.username : undefined,
+        },
+    });
+}
+
+async function changeAlias(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
+
+    const alias = (b.alias || "").trim();
+    if (alias.length < 2 || alias.length > 24)
+        return json({ error: "นามแฝงต้องยาว 2-24 ตัวอักษร" }, 400);
+    if (!/^[\p{L}\p{N}#_.\- ]+$/u.test(alias))
+        return json({ error: "นามแฝงใช้ได้เฉพาะตัวอักษร ตัวเลข # _ . - และเว้นวรรค" }, 400);
+
+    const { censored } = censor(alias);
+    if (censored) return json({ error: "นามแฝงมีคำไม่เหมาะสม" }, 400);
+
+    const taken = await env.DB.prepare(
+        "SELECT username FROM users WHERE lower(alias) = lower(?) AND username != ?"
+    ).bind(alias, username).first();
+    if (taken) return json({ error: "นามแฝงนี้ถูกใช้แล้ว" }, 409);
+
+    // กันตั้งนามแฝงให้ตรงกับชื่อผู้ใช้จริงของคนอื่น (จะทำให้เดาตัวตนได้)
+    const clash = await env.DB.prepare(
+        "SELECT username FROM users WHERE lower(username) = lower(?) AND username != ?"
+    ).bind(alias, username).first();
+    if (clash) return json({ error: "นามแฝงนี้ใช้ไม่ได้" }, 409);
+
+    await env.DB.prepare("UPDATE users SET alias = ? WHERE username = ?").bind(alias, username).run();
+    return json({ ok: true, alias });
 }
 
 // ===== Auth =====
@@ -521,10 +742,11 @@ async function register(request, env) {
 
     const salt = toHex(crypto.getRandomValues(new Uint8Array(16)));
     const hash = await pbkdf2(password, salt);
+    const alias = randomAlias();
     await env.DB.prepare(
-        "INSERT INTO users (username, password_hash, salt, email) VALUES (?, ?, ?, ?)"
-    ).bind(username, hash, salt, email).run();
-    return json({ ok: true });
+        "INSERT INTO users (username, password_hash, salt, email, alias) VALUES (?, ?, ?, ?, ?)"
+    ).bind(username, hash, salt, email, alias).run();
+    return json({ ok: true, alias });
 }
 
 async function login(request, env) {
@@ -564,7 +786,9 @@ async function login(request, env) {
         await env.DB.prepare("DELETE FROM sessions WHERE expires_at IS NOT NULL AND expires_at < datetime('now')").run();
     } catch (e) { /* ไม่กระทบการล็อกอิน */ }
 
-    return json({ ok: true, token, username: validUser });
+    // ผู้ใช้เก่าที่ยังไม่มีนามแฝง จะได้รับตอนล็อกอิน
+    const alias = await ensureAlias(env, validUser);
+    return json({ ok: true, token, username: validUser, alias });
 }
 
 // ===== ป้องกันการเดารหัสผ่าน =====
@@ -617,10 +841,11 @@ async function me(request, env, url) {
 }
 
 async function userInfo(env, username) {
-    const row = await env.DB.prepare("SELECT id, email, created_at, role FROM users WHERE username = ?")
+    const row = await env.DB.prepare("SELECT id, email, created_at, role, alias FROM users WHERE username = ?")
         .bind(username).first();
     return {
-        username,
+        username,                       // เห็นได้เฉพาะเจ้าของบัญชีเอง
+        alias: row ? row.alias : null,  // ชื่อที่คนอื่นเห็น
         id: row ? row.id : null,
         email: row ? row.email : null,
         created_at: row ? row.created_at : null,
@@ -648,6 +873,21 @@ async function userFromToken(env, token) {
     return row.username;
 }
 
+// แทนที่ชื่อผู้ใช้จริงด้วยนามแฝงในรายการที่ส่งออก
+// เก็บ author_key ไว้ให้หน้าเว็บใช้ตรวจสิทธิ์ (เทียบกับตัวเอง) โดยไม่เปิดเผยชื่อคนอื่น
+async function maskAuthors(env, rows, field, viewer) {
+    const list = rows || [];
+    const map = await aliasMap(env, list.map((r) => r[field]));
+    const viewerIsAdmin = viewer ? await isAdmin(env, viewer) : false;
+    list.forEach((r) => {
+        const real = r[field];
+        r.is_mine = real === viewer;
+        if (viewerIsAdmin) r.real_username = real;
+        r[field] = map[real] || real;
+    });
+    return list;
+}
+
 // ===== Posts =====
 async function listPosts(request, env, url) {
     const viewer = await userFromToken(env, url.searchParams.get("token") || "");
@@ -660,7 +900,7 @@ async function listPosts(request, env, url) {
         "  (SELECT COUNT(*) FROM likes l2 WHERE l2.post_id = p.id AND l2.username = ?) END AS liked " +
         "FROM posts p ORDER BY p.id DESC LIMIT 100"
     ).bind(viewer, viewer).all();
-    return json({ ok: true, posts: results || [] });
+    return json({ ok: true, posts: await maskAuthors(env, results, "author", viewer) });
 }
 
 async function toggleLike(request, env) {
@@ -717,6 +957,7 @@ async function createPost(request, env) {
     post.liked = 0;
     post.comment_count = 0;
     post.share_count = 0;
+    await maskAuthors(env, [post], "author", username);
     return json({ ok: true, post });
 }
 
@@ -738,8 +979,9 @@ async function updatePost(request, env) {
     await env.DB.prepare("UPDATE posts SET title = ?, content = ?, type = ? WHERE id = ?")
         .bind(title, content, type, b.id).run();
     const updated = await env.DB.prepare(
-        "SELECT id, author, type, title, content, created_at FROM posts WHERE id = ?"
+        "SELECT id, author, type, title, content, media_key, media_type, share_count, created_at FROM posts WHERE id = ?"
     ).bind(b.id).first();
+    await maskAuthors(env, [updated], "author", username);
     return json({ ok: true, post: updated });
 }
 
@@ -781,12 +1023,13 @@ async function sharePost(request, env) {
 
 // ===== Comments =====
 async function listComments(env, url) {
+    const viewer = await userFromToken(env, url.searchParams.get("token") || "");
     const postId = parseInt(url.searchParams.get("post_id") || "", 10);
     if (isNaN(postId)) return json({ error: "รหัสโพสต์ไม่ถูกต้อง" }, 400);
     const { results } = await env.DB.prepare(
         "SELECT id, post_id, author, content, created_at FROM comments WHERE post_id = ? ORDER BY id ASC LIMIT 200"
     ).bind(postId).all();
-    return json({ ok: true, comments: results || [] });
+    return json({ ok: true, comments: await maskAuthors(env, results, "author", viewer) });
 }
 
 async function createComment(request, env) {
@@ -809,6 +1052,7 @@ async function createComment(request, env) {
     const comment = await env.DB.prepare(
         "SELECT id, post_id, author, content, created_at FROM comments WHERE id = ?"
     ).bind(res.meta.last_row_id).first();
+    await maskAuthors(env, [comment], "author", username);
     return json({ ok: true, comment });
 }
 
@@ -827,13 +1071,14 @@ async function deleteComment(request, env) {
 }
 
 // ===== Novels =====
-async function listNovels(env) {
+async function listNovels(env, url) {
+    const viewer = url ? await userFromToken(env, url.searchParams.get("token") || "") : null;
     const { results } = await env.DB.prepare(
         "SELECT n.id, n.author, n.title, n.synopsis, n.cover, n.created_at, " +
         "(SELECT COUNT(*) FROM chapters c WHERE c.novel_id = n.id) AS chapter_count " +
         "FROM novels n ORDER BY n.id DESC LIMIT 100"
     ).all();
-    return json({ ok: true, novels: results || [] });
+    return json({ ok: true, novels: await maskAuthors(env, results, "author", viewer) });
 }
 
 async function getNovel(env, url) {
@@ -858,6 +1103,7 @@ async function getNovel(env, url) {
         ).bind(id, viewer).first();
         novel.following = !!f;
     }
+    await maskAuthors(env, [novel], "author", viewer);
     return json({ ok: true, novel });
 }
 
@@ -879,6 +1125,7 @@ async function createNovel(request, env) {
     const novel = await env.DB.prepare(
         "SELECT id, author, title, synopsis, cover, created_at FROM novels WHERE id = ?"
     ).bind(res.meta.last_row_id).first();
+    await maskAuthors(env, [novel], "author", username);
     return json({ ok: true, novel });
 }
 
@@ -1069,9 +1316,16 @@ async function listFriends(env, url) {
     const username = await userFromToken(env, url.searchParams.get("token") || "");
     if (!username) return json({ error: "unauthorized" }, 401);
     const { results } = await env.DB.prepare(
-        "SELECT friend_username, friend_id FROM friends WHERE owner = ? ORDER BY id DESC"
+        "SELECT f.friend_username, f.friend_id, u.alias FROM friends f " +
+        "LEFT JOIN users u ON u.username = f.friend_username WHERE f.owner = ? ORDER BY f.id DESC"
     ).bind(username).all();
-    return json({ ok: true, friends: results || [] });
+    const viewerIsAdmin = await isAdmin(env, username);
+    const friends = (results || []).map((r) => ({
+        alias: r.alias || r.friend_username,
+        friend_id: r.friend_id,
+        real_username: viewerIsAdmin ? r.friend_username : undefined,
+    }));
+    return json({ ok: true, friends });
 }
 
 async function addFriend(request, env) {
@@ -1079,16 +1333,14 @@ async function addFriend(request, env) {
     const username = await userFromToken(env, b.token || "");
     if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
 
-    const fname = (b.username || "").trim();
-    const fidRaw = b.id;
-    if (!fname || fidRaw === undefined || fidRaw === null || String(fidRaw).trim() === "")
-        return json({ error: "กรุณากรอกชื่อผู้ใช้และไอดี" }, 400);
-    const fid = parseInt(fidRaw, 10);
-    if (isNaN(fid)) return json({ error: "ไอดีต้องเป็นตัวเลข" }, 400);
+    // เพิ่มเพื่อนด้วย "นามแฝง" เท่านั้น — ชื่อผู้ใช้จริงถูกซ่อนจากทุกคน
+    let alias = (b.alias || b.username || "").trim();
+    if (!alias) return json({ error: "กรุณากรอกนามแฝงของเพื่อน" }, 400);
+    if (alias[0] !== "#" && /^\d{9}$/.test(alias)) alias = "#" + alias;   // ใส่ # ให้อัตโนมัติ
 
-    const target = await env.DB.prepare("SELECT id, username FROM users WHERE id = ? AND username = ?")
-        .bind(fid, fname).first();
-    if (!target) return json({ error: "ไม่พบผู้ใช้ที่มีชื่อและไอดีนี้" }, 404);
+    const target = await env.DB.prepare("SELECT id, username, alias FROM users WHERE alias = ?")
+        .bind(alias).first();
+    if (!target) return json({ error: "ไม่พบผู้ใช้ที่มีนามแฝงนี้" }, 404);
     if (target.username === username) return json({ error: "ไม่สามารถเพิ่มตัวเองเป็นเพื่อนได้" }, 400);
 
     const exists = await env.DB.prepare("SELECT id FROM friends WHERE owner = ? AND friend_username = ?")
@@ -1097,44 +1349,57 @@ async function addFriend(request, env) {
 
     await env.DB.prepare("INSERT INTO friends (owner, friend_username, friend_id) VALUES (?, ?, ?)")
         .bind(username, target.username, target.id).run();
-    return json({ ok: true, friend: { friend_username: target.username, friend_id: target.id } });
+    return json({ ok: true, friend: { alias: target.alias, friend_id: target.id } });
 }
 
 // ===== Messages =====
 async function listMessages(env, url) {
     const username = await userFromToken(env, url.searchParams.get("token") || "");
     if (!username) return json({ error: "unauthorized" }, 401);
-    const withUser = (url.searchParams.get("with") || "").trim();
-    if (!withUser) return json({ error: "missing with" }, 400);
+    const withAlias = (url.searchParams.get("with") || "").trim();
+    if (!withAlias) return json({ error: "missing with" }, 400);
+    const withUser = await usernameFromAlias(env, withAlias);
+    if (!withUser) return json({ error: "ไม่พบผู้ใช้นี้" }, 404);
+
     const { results } = await env.DB.prepare(
         "SELECT id, sender, recipient, content, created_at FROM messages " +
         "WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?) ORDER BY id ASC LIMIT 300"
     ).bind(username, withUser, withUser, username).all();
-    return json({ ok: true, messages: results || [] });
+    const messages = (results || []).map((r) => ({
+        id: r.id,
+        mine: r.sender === username,
+        content: r.content,
+        created_at: r.created_at,
+    }));
+    return json({ ok: true, messages });
 }
 
 async function sendMessage(request, env) {
     const b = await readJson(request);
     const username = await userFromToken(env, b.token || "");
     if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
-    const to = (b.to || "").trim();
+    const toAlias = (b.to || "").trim();
     const content = (b.content || "").trim();
-    if (!to || !content) return json({ error: "ข้อมูลไม่ครบ" }, 400);
+    if (!toAlias || !content) return json({ error: "ข้อมูลไม่ครบ" }, 400);
     if (content.length > 2000) return json({ error: "ข้อความยาวเกินไป" }, 400);
+    const to = await usernameFromAlias(env, toAlias);
+    if (!to) return json({ error: "ไม่พบผู้ใช้นี้" }, 404);
+    const myAlias = await ensureAlias(env, username);
 
     const res = await env.DB.prepare(
         "INSERT INTO messages (sender, recipient, content) VALUES (?, ?, ?)"
     ).bind(username, to, content).run();
-    const message = await env.DB.prepare(
-        "SELECT id, sender, recipient, content, created_at FROM messages WHERE id = ?"
+    const raw = await env.DB.prepare(
+        "SELECT id, sender, content, created_at FROM messages WHERE id = ?"
     ).bind(res.meta.last_row_id).first();
+    const message = { id: raw.id, mine: true, content: raw.content, created_at: raw.created_at };
 
     await pushNotification(env, {
         recipient: to,
         type: "message",
-        title: username + " ส่งข้อความถึงคุณ",
+        title: (myAlias || "มีคน") + " ส่งข้อความถึงคุณ",
         body: content.slice(0, 120),
-        link: "chat:" + username,
+        link: "chat:" + (myAlias || ""),
         actor: username,
     });
 
@@ -1144,7 +1409,9 @@ async function sendMessage(request, env) {
         await stub.fetch("https://do/broadcast", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({
+                message: { id: raw.id, sender: username, content: raw.content, created_at: raw.created_at },
+            }),
         });
     } catch (e) { /* ignore broadcast errors */ }
 
@@ -1202,10 +1469,26 @@ export class ChatRoom {
             return new Response(null, { status: 101, webSocket: client });
         }
 
-        // กระจายข้อความที่ส่งผ่าน REST
+        // กระจายข้อความที่ส่งผ่าน REST (คำนวณ mine แยกรายคน)
         if (request.method === "POST") {
             const body = await request.json().catch(() => ({}));
-            if (body && body.message) this.broadcast({ type: "message", message: body.message });
+            const msg = body && body.message;
+            if (msg) {
+                for (const ws of this.state.getWebSockets()) {
+                    try {
+                        const a = ws.deserializeAttachment() || {};
+                        ws.send(JSON.stringify({
+                            type: "message",
+                            message: {
+                                id: msg.id,
+                                mine: a.user === msg.sender,
+                                content: msg.content,
+                                created_at: msg.created_at,
+                            },
+                        }));
+                    } catch (e) { /* ignore */ }
+                }
+            }
             return new Response("ok");
         }
 
@@ -1218,26 +1501,48 @@ export class ChatRoom {
         const att = ws.deserializeAttachment() || {};
         const sender = att.user;
         if (!sender) return;
-        const to = (data.to || "").trim();
+        const toAlias = (data.to || "").trim();
         const content = (data.content || "").trim();
-        if (!to || !content || content.length > 2000) return;
+        if (!toAlias || !content || content.length > 2000) return;
+
+        const toRow = await this.env.DB.prepare("SELECT username FROM users WHERE alias = ?")
+            .bind(toAlias).first();
+        if (!toRow) return;
+        const to = toRow.username;
+        const meRow = await this.env.DB.prepare("SELECT alias FROM users WHERE username = ?")
+            .bind(sender).first();
+        const senderAlias = meRow ? meRow.alias : sender;
 
         const res = await this.env.DB.prepare(
             "INSERT INTO messages (sender, recipient, content) VALUES (?, ?, ?)"
         ).bind(sender, to, content).run();
         const saved = await this.env.DB.prepare(
-            "SELECT id, sender, recipient, content, created_at FROM messages WHERE id = ?"
+            "SELECT id, sender, content, created_at FROM messages WHERE id = ?"
         ).bind(res.meta.last_row_id).first();
 
-        this.broadcast({ type: "message", message: saved });
+        // ส่งให้แต่ละฝั่งโดยระบุว่าเป็นข้อความของตัวเองหรือไม่ (ไม่เปิดเผยชื่อผู้ใช้จริง)
+        for (const ws2 of this.state.getWebSockets()) {
+            try {
+                const a = ws2.deserializeAttachment() || {};
+                ws2.send(JSON.stringify({
+                    type: "message",
+                    message: {
+                        id: saved.id,
+                        mine: a.user === sender,
+                        content: saved.content,
+                        created_at: saved.created_at,
+                    },
+                }));
+            } catch (e) { /* ignore */ }
+        }
 
         // แจ้งเตือนผู้รับ (กระดิ่ง)
         await pushNotification(this.env, {
             recipient: to,
             type: "message",
-            title: sender + " ส่งข้อความถึงคุณ",
+            title: senderAlias + " ส่งข้อความถึงคุณ",
             body: content.slice(0, 120),
-            link: "chat:" + sender,
+            link: "chat:" + senderAlias,
             actor: sender,
         });
     }
