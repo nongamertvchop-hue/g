@@ -67,8 +67,13 @@ async function handleApi(request, env, url) {
 
     // อาเรีย (ผู้ช่วย AI)
     if (p === "/api/aria" && m === "POST") return askAria(request, env);
-    if (p === "/api/aria/history" && m === "GET") return ariaHistory(env, url);
-    if (p === "/api/aria/clear" && m === "POST") return ariaClear(request, env);
+    if (p === "/api/aria/conversations" && m === "GET") return ariaListConversations(env, url);
+    if (p === "/api/aria/conversation" && m === "GET") return ariaGetConversation(env, url);
+    if (p === "/api/aria/conversations/delete" && m === "POST") return ariaDeleteConversation(request, env);
+    if (p === "/api/aria/conversations/clear-all" && m === "POST") return ariaClearAll(request, env);
+    if (p === "/api/aria/trash" && m === "GET") return ariaTrash(env, url);
+    if (p === "/api/aria/trash/restore" && m === "POST") return ariaRestore(request, env);
+    if (p === "/api/aria/trash/purge" && m === "POST") return ariaPurge(request, env);
 
     // media (R2)
     if (p === "/api/media/status" && m === "GET") return json({ ok: true, enabled: !!env.MEDIA });
@@ -182,10 +187,45 @@ async function buildSiteContext(env, username) {
     return lines.join("\n");
 }
 
-async function loadAriaHistory(env, username, limit) {
+// ลบบทสนทนาในถังขยะที่เกิน 7 วันทิ้งอัตโนมัติ
+async function purgeExpiredTrash(env, username) {
+    try {
+        const { results } = await env.DB.prepare(
+            "SELECT id FROM aria_conversations WHERE username = ? AND deleted_at IS NOT NULL " +
+            "AND deleted_at < datetime('now', '-7 days')"
+        ).bind(username).all();
+        const ids = (results || []).map((r) => r.id);
+        if (!ids.length) return;
+        const marks = ids.map(() => "?").join(",");
+        await env.DB.batch([
+            env.DB.prepare("DELETE FROM aria_messages WHERE conversation_id IN (" + marks + ")").bind(...ids),
+            env.DB.prepare("DELETE FROM aria_conversations WHERE id IN (" + marks + ")").bind(...ids),
+        ]);
+    } catch (e) { /* ไม่ให้กระทบการใช้งานหลัก */ }
+}
+
+async function ownedConversation(env, username, id, wantDeleted) {
+    const cid = parseInt(id, 10);
+    if (isNaN(cid)) return null;
+    const row = await env.DB.prepare(
+        "SELECT id, title, created_at, updated_at, deleted_at FROM aria_conversations WHERE id = ? AND username = ?"
+    ).bind(cid, username).first();
+    if (!row) return null;
+    if (wantDeleted === true && !row.deleted_at) return null;
+    if (wantDeleted === false && row.deleted_at) return null;
+    return row;
+}
+
+function makeTitle(text) {
+    const t = String(text).replace(/\s+/g, " ").trim();
+    if (!t) return "บทสนทนาใหม่";
+    return t.length > 42 ? t.slice(0, 42) + "…" : t;
+}
+
+async function loadConversationMessages(env, conversationId, limit) {
     const { results } = await env.DB.prepare(
-        "SELECT role, content FROM aria_messages WHERE username = ? ORDER BY id DESC LIMIT ?"
-    ).bind(username, limit).all();
+        "SELECT role, content FROM aria_messages WHERE conversation_id = ? ORDER BY id DESC LIMIT ?"
+    ).bind(conversationId, limit).all();
     return (results || []).reverse();
 }
 
@@ -200,8 +240,21 @@ async function askAria(request, env) {
     if (!message) return json({ error: "กรุณาพิมพ์ข้อความ" }, 400);
     if (message.length > 4000) return json({ error: "ข้อความยาวเกินไป" }, 400);
 
+    await purgeExpiredTrash(env, username);
+
+    // หาบทสนทนาปัจจุบัน ถ้าไม่มีให้สร้างใหม่
+    let conv = await ownedConversation(env, username, b.conversation_id, false);
+    let isNew = false;
+    if (!conv) {
+        const res = await env.DB.prepare(
+            "INSERT INTO aria_conversations (username, title) VALUES (?, ?)"
+        ).bind(username, makeTitle(message)).run();
+        conv = { id: res.meta.last_row_id };
+        isNew = true;
+    }
+
     // ความจำถาวร: อ่านบทสนทนาเก่าจากฐานข้อมูล
-    const past = await loadAriaHistory(env, username, 12);
+    const past = await loadConversationMessages(env, conv.id, 12);
     const siteContext = await buildSiteContext(env, username);
 
     const messages = [
@@ -232,35 +285,100 @@ async function askAria(request, env) {
     // บันทึกบทสนทนาไว้ถาวร
     try {
         await env.DB.batch([
-            env.DB.prepare("INSERT INTO aria_messages (username, role, content) VALUES (?, 'user', ?)")
-                .bind(username, message),
-            env.DB.prepare("INSERT INTO aria_messages (username, role, content) VALUES (?, 'assistant', ?)")
-                .bind(username, reply),
-            // เก็บไว้ไม่เกิน 60 ข้อความล่าสุดต่อคน
-            env.DB.prepare(
-                "DELETE FROM aria_messages WHERE username = ? AND id NOT IN " +
-                "(SELECT id FROM aria_messages WHERE username = ? ORDER BY id DESC LIMIT 60)"
-            ).bind(username, username),
+            env.DB.prepare("INSERT INTO aria_messages (username, conversation_id, role, content) VALUES (?, ?, 'user', ?)")
+                .bind(username, conv.id, message),
+            env.DB.prepare("INSERT INTO aria_messages (username, conversation_id, role, content) VALUES (?, ?, 'assistant', ?)")
+                .bind(username, conv.id, reply),
+            env.DB.prepare("UPDATE aria_conversations SET updated_at = datetime('now') WHERE id = ?")
+                .bind(conv.id),
         ]);
     } catch (e) { /* ถ้าบันทึกพลาด ก็ยังตอบผู้ใช้ได้ */ }
 
-    return json({ ok: true, reply, model: usedModel });
+    return json({ ok: true, reply, model: usedModel, conversation_id: conv.id, new_conversation: isNew });
 }
 
-async function ariaHistory(env, url) {
+// ===== ประวัติแชท =====
+async function ariaListConversations(env, url) {
     const username = await userFromToken(env, url.searchParams.get("token") || "");
     if (!username) return json({ error: "unauthorized" }, 401);
+    await purgeExpiredTrash(env, username);
     const { results } = await env.DB.prepare(
-        "SELECT role, content, created_at FROM aria_messages WHERE username = ? ORDER BY id ASC LIMIT 60"
+        "SELECT c.id, c.title, c.created_at, c.updated_at, " +
+        "(SELECT COUNT(*) FROM aria_messages m WHERE m.conversation_id = c.id) AS message_count " +
+        "FROM aria_conversations c WHERE c.username = ? AND c.deleted_at IS NULL " +
+        "ORDER BY c.updated_at DESC, c.id DESC LIMIT 100"
     ).bind(username).all();
-    return json({ ok: true, messages: results || [] });
+    return json({ ok: true, conversations: results || [] });
 }
 
-async function ariaClear(request, env) {
+async function ariaGetConversation(env, url) {
+    const username = await userFromToken(env, url.searchParams.get("token") || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    const conv = await ownedConversation(env, username, url.searchParams.get("id"), false);
+    if (!conv) return json({ error: "ไม่พบบทสนทนา" }, 404);
+    const { results } = await env.DB.prepare(
+        "SELECT role, content, created_at FROM aria_messages WHERE conversation_id = ? ORDER BY id ASC LIMIT 200"
+    ).bind(conv.id).all();
+    return json({ ok: true, conversation: conv, messages: results || [] });
+}
+
+async function ariaDeleteConversation(request, env) {
     const b = await readJson(request);
     const username = await userFromToken(env, b.token || "");
     if (!username) return json({ error: "unauthorized" }, 401);
-    await env.DB.prepare("DELETE FROM aria_messages WHERE username = ?").bind(username).run();
+    const conv = await ownedConversation(env, username, b.id, false);
+    if (!conv) return json({ error: "ไม่พบบทสนทนา" }, 404);
+    await env.DB.prepare("UPDATE aria_conversations SET deleted_at = datetime('now') WHERE id = ?")
+        .bind(conv.id).run();
+    return json({ ok: true });
+}
+
+async function ariaClearAll(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    const res = await env.DB.prepare(
+        "UPDATE aria_conversations SET deleted_at = datetime('now') WHERE username = ? AND deleted_at IS NULL"
+    ).bind(username).run();
+    return json({ ok: true, moved: res.meta ? res.meta.changes : 0 });
+}
+
+// ===== ถังขยะ (เฉพาะแชท AI) =====
+async function ariaTrash(env, url) {
+    const username = await userFromToken(env, url.searchParams.get("token") || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    await purgeExpiredTrash(env, username);
+    const { results } = await env.DB.prepare(
+        "SELECT c.id, c.title, c.created_at, c.updated_at, c.deleted_at, " +
+        "(SELECT COUNT(*) FROM aria_messages m WHERE m.conversation_id = c.id) AS message_count, " +
+        "CAST(julianday(c.deleted_at, '+7 days') - julianday('now') AS REAL) AS days_left " +
+        "FROM aria_conversations c WHERE c.username = ? AND c.deleted_at IS NOT NULL " +
+        "ORDER BY c.deleted_at DESC LIMIT 100"
+    ).bind(username).all();
+    return json({ ok: true, trash: results || [] });
+}
+
+async function ariaRestore(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    const conv = await ownedConversation(env, username, b.id, true);
+    if (!conv) return json({ error: "ไม่พบบทสนทนาในถังขยะ" }, 404);
+    await env.DB.prepare("UPDATE aria_conversations SET deleted_at = NULL WHERE id = ?")
+        .bind(conv.id).run();
+    return json({ ok: true });
+}
+
+async function ariaPurge(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    const conv = await ownedConversation(env, username, b.id, true);
+    if (!conv) return json({ error: "ไม่พบบทสนทนาในถังขยะ" }, 404);
+    await env.DB.batch([
+        env.DB.prepare("DELETE FROM aria_messages WHERE conversation_id = ?").bind(conv.id),
+        env.DB.prepare("DELETE FROM aria_conversations WHERE id = ?").bind(conv.id),
+    ]);
     return json({ ok: true });
 }
 

@@ -253,7 +253,31 @@
                                 <h2 class="aria-name">อาเรีย</h2>
                                 <span class="aria-role">ผู้ช่วยประจำเรือนอักษร</span>
                             </div>
-                            <button class="aria-clear" id="ariaClear" type="button">ล้างบทสนทนา</button>
+                            <div class="aria-tools">
+                                <button class="aria-tool" id="ariaHistoryBtn" type="button">🕘 ประวัติแชท</button>
+                                <button class="aria-tool" id="ariaTrashBtn" type="button">🗑️ ถังขยะ</button>
+                                <button class="aria-clear" id="ariaClear" type="button">ล้างบทสนทนา</button>
+                            </div>
+                        </div>
+
+                        <!-- ประวัติแชท -->
+                        <div class="aria-pane" id="ariaHistoryPane" style="display:none">
+                            <div class="aria-pane-head">
+                                <h3 class="aria-pane-title">ประวัติแชท</h3>
+                                <button class="aria-pane-danger" id="ariaClearAllBtn" type="button">ล้างประวัติแชททั้งหมด</button>
+                                <button class="aria-pane-close" id="ariaHistoryClose" type="button">✕ ปิด</button>
+                            </div>
+                            <div class="aria-list" id="ariaHistoryList"></div>
+                        </div>
+
+                        <!-- ถังขยะ -->
+                        <div class="aria-pane" id="ariaTrashPane" style="display:none">
+                            <div class="aria-pane-head">
+                                <h3 class="aria-pane-title">ถังขยะแชท</h3>
+                                <span class="aria-pane-note">เก็บไว้ 7 วัน แล้วลบอัตโนมัติ</span>
+                                <button class="aria-pane-close" id="ariaTrashClose" type="button">✕ ปิด</button>
+                            </div>
+                            <div class="aria-list" id="ariaTrashList"></div>
                         </div>
 
                         <div class="aria-messages" id="ariaMessages">

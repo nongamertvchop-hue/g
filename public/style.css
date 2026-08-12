@@ -1637,6 +1637,145 @@ body::after {
 
 .aria-clear:hover { color: #d97b7b; border-color: var(--blood); }
 
+/* แถบปุ่มเครื่องมือของอาเรีย */
+.aria-tools { margin-left: auto; display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+
+.aria-tool {
+    background: rgba(201, 162, 75, 0.07);
+    border: 1px solid rgba(201, 162, 75, 0.3);
+    border-radius: 9px;
+    padding: 7px 12px;
+    color: var(--gold-soft);
+    font-family: var(--font-body);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.25s;
+    white-space: nowrap;
+}
+
+.aria-tool:hover { background: rgba(201, 162, 75, 0.18); }
+
+/* แผงประวัติแชท / ถังขยะ */
+.aria-pane {
+    background: rgba(8, 7, 12, 0.94);
+    border: 1px solid rgba(201, 162, 75, 0.28);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: aria-in 0.22s ease;
+}
+
+.aria-pane-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.aria-pane-title { font-family: var(--font-serif); font-size: 21px; color: var(--gold); }
+.aria-pane-note { font-size: 11.5px; color: var(--ink-faint); }
+
+.aria-pane-danger {
+    background: rgba(126, 31, 43, 0.16);
+    border: 1px solid rgba(168, 50, 63, 0.5);
+    border-radius: 9px;
+    padding: 7px 12px;
+    color: #e39a9a;
+    font-family: var(--font-body);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.aria-pane-danger:hover { background: rgba(126, 31, 43, 0.3); color: #f2c3c3; }
+
+.aria-pane-close {
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 7px 12px;
+    color: var(--ink-dim);
+    font-family: var(--font-body);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.aria-pane-close:hover { color: var(--ink); border-color: var(--gold-deep); }
+
+.aria-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.aria-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(16, 13, 22, 0.85);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 9px 11px;
+    transition: border-color 0.25s;
+}
+
+.aria-item:hover { border-color: rgba(201, 162, 75, 0.45); }
+.aria-item.current { border-color: var(--gold-deep); background: rgba(201, 162, 75, 0.08); }
+
+.aria-item-main {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-family: var(--font-body);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 0;
+}
+
+.aria-item-main.static { cursor: default; }
+
+.aria-item-title {
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.aria-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: var(--ink-faint);
+    font-size: 11px;
+}
+
+.aria-days-left { color: var(--gold-soft); }
+
+.aria-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.aria-item-btn {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--ink-dim);
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: all 0.22s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.aria-item-btn:hover { color: var(--gold-soft); border-color: var(--gold-deep); }
+.aria-item-btn.danger:hover { color: #e39a9a; border-color: rgba(168, 50, 63, 0.6); background: rgba(126, 31, 43, 0.16); }
+
 .aria-messages {
     flex: 1;
     min-height: 300px;

@@ -1105,19 +1105,163 @@
     // ---------- อาเรีย (AI) ----------
     let ariaBusy = false;
     let ariaLoaded = false;
+    let ariaConvId = null;
 
-    // โหลดบทสนทนาเก่าจากฐานข้อมูล (ความจำถาวรข้ามวัน)
+    function fmtDateTime(iso) {
+        if (!iso) return "";
+        const t = Date.parse(String(iso).replace(" ", "T") + "Z");
+        if (isNaN(t)) return "";
+        return new Date(t).toLocaleString("th-TH", {
+            day: "numeric", month: "short", year: "numeric",
+            hour: "2-digit", minute: "2-digit",
+        });
+    }
+
+    // เปิดบทสนทนาล่าสุดเมื่อเข้าหน้าอาเรียครั้งแรก
     async function loadAriaHistory() {
         if (ariaLoaded) return;
         ariaLoaded = true;
+        const res = await api("/api/aria/conversations?token=" + encodeURIComponent(token));
+        const list = (res.data && res.data.conversations) || [];
+        if (list.length > 0) openConversation(list[0].id);
+    }
+
+    async function openConversation(id) {
         const box = document.getElementById("ariaMessages");
         if (!box) return;
-        const res = await api("/api/aria/history?token=" + encodeURIComponent(token));
-        const msgs = (res.data && res.data.messages) || [];
-        if (msgs.length === 0) return;   // ปล่อยข้อความต้อนรับไว้
+        closeAriaPanes();
+        const res = await api("/api/aria/conversation?token=" + encodeURIComponent(token) + "&id=" + encodeURIComponent(id));
+        if (!res.ok || !res.data.ok) { toast(res.data.error || "เปิดบทสนทนาไม่สำเร็จ", true); return; }
+        ariaConvId = res.data.conversation.id;
         box.innerHTML = "";
-        msgs.forEach(function (m) { box.appendChild(ariaBubble(m.role, m.content)); });
+        (res.data.messages || []).forEach(function (m) { box.appendChild(ariaBubble(m.role, m.content)); });
+        if (!res.data.messages || !res.data.messages.length) {
+            box.appendChild(el("div", "aria-empty", "ยังไม่มีข้อความในบทสนทนานี้"));
+        }
         box.scrollTop = box.scrollHeight;
+    }
+
+    function closeAriaPanes() {
+        const h = document.getElementById("ariaHistoryPane");
+        const t = document.getElementById("ariaTrashPane");
+        if (h) h.style.display = "none";
+        if (t) t.style.display = "none";
+    }
+
+    // ---------- ประวัติแชท ----------
+    async function showAriaHistory() {
+        const pane = document.getElementById("ariaHistoryPane");
+        const list = document.getElementById("ariaHistoryList");
+        document.getElementById("ariaTrashPane").style.display = "none";
+        pane.style.display = "";
+        list.innerHTML = '<div class="feed-loading">กำลังโหลด...</div>';
+
+        const res = await api("/api/aria/conversations?token=" + encodeURIComponent(token));
+        const items = (res.data && res.data.conversations) || [];
+        list.innerHTML = "";
+        if (!items.length) {
+            list.appendChild(el("div", "aria-empty", "ยังไม่มีประวัติแชท"));
+            return;
+        }
+        items.forEach(function (c) {
+            const row = el("div", "aria-item" + (c.id === ariaConvId ? " current" : ""));
+            const main = el("button", "aria-item-main");
+            main.appendChild(el("span", "aria-item-title", c.title));
+            const meta = el("span", "aria-item-meta");
+            meta.appendChild(el("span", null, "เริ่ม " + fmtDateTime(c.created_at)));
+            meta.appendChild(el("span", null, "ล่าสุด " + fmtDateTime(c.updated_at)));
+            meta.appendChild(el("span", null, c.message_count + " ข้อความ"));
+            main.appendChild(meta);
+            main.addEventListener("click", function () { openConversation(c.id); });
+
+            const del = el("button", "aria-item-btn danger", "🗑️ ลบ");
+            del.addEventListener("click", async function () {
+                const yes = await confirmDialog(
+                    "ย้ายบทสนทนา \"" + c.title + "\" ไปถังขยะ?\nจะเก็บไว้ 7 วัน กู้คืนได้ก่อนครบกำหนด", "ย้ายไปถังขยะ");
+                if (!yes) return;
+                const r = await api("/api/aria/conversations/delete", {
+                    method: "POST", headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ token, id: c.id }),
+                });
+                if (r.ok && r.data.ok) {
+                    toast("ย้ายไปถังขยะแล้ว");
+                    if (c.id === ariaConvId) startNewConversation();
+                    showAriaHistory();
+                } else toast(r.data.error || "ลบไม่สำเร็จ", true);
+            });
+
+            row.appendChild(main);
+            row.appendChild(del);
+            list.appendChild(row);
+        });
+    }
+
+    // ---------- ถังขยะ ----------
+    async function showAriaTrash() {
+        const pane = document.getElementById("ariaTrashPane");
+        const list = document.getElementById("ariaTrashList");
+        document.getElementById("ariaHistoryPane").style.display = "none";
+        pane.style.display = "";
+        list.innerHTML = '<div class="feed-loading">กำลังโหลด...</div>';
+
+        const res = await api("/api/aria/trash?token=" + encodeURIComponent(token));
+        const items = (res.data && res.data.trash) || [];
+        list.innerHTML = "";
+        if (!items.length) {
+            list.appendChild(el("div", "aria-empty", "ถังขยะว่างเปล่า"));
+            return;
+        }
+        items.forEach(function (c) {
+            const daysLeft = Math.max(0, Math.ceil(Number(c.days_left) || 0));
+            const row = el("div", "aria-item");
+            const main = el("div", "aria-item-main static");
+            main.appendChild(el("span", "aria-item-title", c.title));
+            const meta = el("span", "aria-item-meta");
+            meta.appendChild(el("span", null, "ลบเมื่อ " + fmtDateTime(c.deleted_at)));
+            meta.appendChild(el("span", null, c.message_count + " ข้อความ"));
+            meta.appendChild(el("span", "aria-days-left", "เหลืออีก " + daysLeft + " วัน"));
+            main.appendChild(meta);
+
+            const restore = el("button", "aria-item-btn", "↩️ กู้คืน");
+            restore.addEventListener("click", async function () {
+                const yes = await confirmDialog(
+                    "ต้องการกู้คืนบทสนทนา \"" + c.title + "\" กลับไปที่ประวัติแชทหรือไม่?", "กู้คืน");
+                if (!yes) return;
+                const r = await api("/api/aria/trash/restore", {
+                    method: "POST", headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ token, id: c.id }),
+                });
+                if (r.ok && r.data.ok) { toast("กู้คืนแล้ว"); showAriaTrash(); }
+                else toast(r.data.error || "กู้คืนไม่สำเร็จ", true);
+            });
+
+            const purge = el("button", "aria-item-btn danger", "❌ ลบถาวร");
+            purge.addEventListener("click", async function () {
+                const yes = await confirmDialog(
+                    "ต้องการลบบทสนทนา \"" + c.title + "\" ถาวรหรือไม่?\nการลบถาวรกู้คืนไม่ได้อีก", "ลบถาวร");
+                if (!yes) return;
+                const r = await api("/api/aria/trash/purge", {
+                    method: "POST", headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ token, id: c.id }),
+                });
+                if (r.ok && r.data.ok) { toast("ลบถาวรแล้ว"); showAriaTrash(); }
+                else toast(r.data.error || "ลบไม่สำเร็จ", true);
+            });
+
+            const actions = el("div", "aria-item-actions");
+            actions.appendChild(restore);
+            actions.appendChild(purge);
+            row.appendChild(main);
+            row.appendChild(actions);
+            list.appendChild(row);
+        });
+    }
+
+    function startNewConversation() {
+        ariaConvId = null;
+        const box = document.getElementById("ariaMessages");
+        box.innerHTML = "";
+        box.appendChild(el("div", "aria-empty", "เริ่มบทสนทนาใหม่ได้เลยค่ะ"));
     }
 
     function setupAria() {
@@ -1147,17 +1291,47 @@
             });
         });
 
+        // ล้างหน้าจอ = เริ่มบทสนทนาใหม่ (บทเก่ายังอยู่ในประวัติแชท)
         if (clearBtn) clearBtn.addEventListener("click", async function () {
-            const yes = await confirmDialog("ล้างบทสนทนากับอาเรียทั้งหมด? อาเรียจะลืมทุกอย่างที่คุยกันมา", "ล้าง");
+            const yes = await confirmDialog(
+                "ล้างหน้าจอและเริ่มบทสนทนาใหม่?\nบทสนทนาปัจจุบันจะยังถูกเก็บไว้ในประวัติแชท", "เริ่มใหม่");
             if (!yes) return;
-            const res = await api("/api/aria/clear", {
+            closeAriaPanes();
+            startNewConversation();
+        });
+
+        const histBtn = document.getElementById("ariaHistoryBtn");
+        const trashBtn = document.getElementById("ariaTrashBtn");
+        const histClose = document.getElementById("ariaHistoryClose");
+        const trashClose = document.getElementById("ariaTrashClose");
+        const clearAllBtn = document.getElementById("ariaClearAllBtn");
+
+        if (histBtn) histBtn.addEventListener("click", function () {
+            const pane = document.getElementById("ariaHistoryPane");
+            if (pane.style.display !== "none") { pane.style.display = "none"; return; }
+            showAriaHistory();
+        });
+        if (trashBtn) trashBtn.addEventListener("click", function () {
+            const pane = document.getElementById("ariaTrashPane");
+            if (pane.style.display !== "none") { pane.style.display = "none"; return; }
+            showAriaTrash();
+        });
+        if (histClose) histClose.addEventListener("click", closeAriaPanes);
+        if (trashClose) trashClose.addEventListener("click", closeAriaPanes);
+
+        if (clearAllBtn) clearAllBtn.addEventListener("click", async function () {
+            const yes = await confirmDialog(
+                "ย้ายประวัติแชททั้งหมดไปถังขยะ?\nจะเก็บไว้ 7 วัน กู้คืนได้ก่อนครบกำหนด", "ล้างทั้งหมด");
+            if (!yes) return;
+            const r = await api("/api/aria/conversations/clear-all", {
                 method: "POST", headers: { "content-type": "application/json" },
                 body: JSON.stringify({ token }),
             });
-            const box = document.getElementById("ariaMessages");
-            box.innerHTML = "";
-            box.appendChild(el("div", "aria-empty", "เริ่มบทสนทนาใหม่ได้เลยค่ะ"));
-            if (!(res.ok && res.data.ok)) toast("ล้างบทสนทนาไม่สำเร็จ", true);
+            if (r.ok && r.data.ok) {
+                toast("ย้ายไปถังขยะแล้ว " + (r.data.moved || 0) + " บทสนทนา");
+                startNewConversation();
+                showAriaHistory();
+            } else toast(r.data.error || "ล้างไม่สำเร็จ", true);
         });
     }
 
@@ -1181,6 +1355,7 @@
         const text = input.value.trim();
         if (!text) return;
 
+        closeAriaPanes();
         const welcome = box.querySelector(".aria-welcome");
         if (welcome) welcome.remove();
         const empty = box.querySelector(".aria-empty");
@@ -1207,13 +1382,14 @@
         const res = await api("/api/aria", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ token, message: text }),
+            body: JSON.stringify({ token, message: text, conversation_id: ariaConvId }),
         });
 
         typing.remove();
         ariaBusy = false;
 
         if (res.ok && res.data.ok) {
+            ariaConvId = res.data.conversation_id;
             box.appendChild(ariaBubble("assistant", res.data.reply));
         } else {
             const errRow = el("div", "aria-row bot");
