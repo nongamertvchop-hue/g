@@ -128,10 +128,23 @@ body::after {
     stroke: var(--gold-soft);
     stroke-width: 1.5;
     stroke-linejoin: round;
+    /* หมุนรอบจุดกึ่งกลางของตรา (viewBox 100x100) */
+    transform-origin: 50px 50px;
+    animation: mark-spin 16s linear infinite;
 }
 
 .emblem-dot {
     fill: var(--gold-soft);
+}
+
+/* สามเหลี่ยมในโลโก้เรือนอักษร (หัวเว็บ) */
+.brand-mark {
+    transform-origin: 50px 50px;
+    animation: mark-spin 16s linear infinite;
+}
+
+@keyframes mark-spin {
+    to { transform: rotate(360deg); }
 }
 
 @keyframes breathe {
