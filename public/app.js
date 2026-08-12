@@ -125,6 +125,7 @@
         setupComposer();
         setupMedia();
         setupAria();
+        setupNotifications();
         setupWrite();
         setupChatControls();
         setupSidebarNav();
@@ -783,7 +784,7 @@
         grid.style.display = "none";
         detail.style.display = "";
         detail.innerHTML = '<div class="feed-loading">กำลังโหลด...</div>';
-        const res = await api("/api/novels/get?id=" + encodeURIComponent(id));
+        const res = await api("/api/novels/get?id=" + encodeURIComponent(id) + "&token=" + encodeURIComponent(token));
         if (!res.ok || !res.data.novel) {
             detail.innerHTML = '<div class="feed-loading">โหลดนิยายไม่สำเร็จ</div>';
             return;
@@ -803,6 +804,33 @@
         meta.appendChild(el("h2", "novel-detail-title", novel.title));
         meta.appendChild(el("span", "novel-detail-author", "โดย " + novel.author));
         meta.appendChild(el("p", "novel-detail-synopsis", novel.synopsis || "ไม่มีเรื่องย่อ"));
+
+        // ปุ่มเปิดแจ้งเตือนเมื่อมีตอนใหม่
+        const followBtn = el("button", "follow-btn");
+        let following = !!novel.following;
+        let followers = novel.follower_count || 0;
+        function paintFollow() {
+            followBtn.textContent = (following ? "🔔 เปิดแจ้งเตือนอยู่" : "🔕 เปิดแจ้งเตือนตอนใหม่") +
+                (followers ? " · " + followers : "");
+            followBtn.classList.toggle("on", following);
+        }
+        paintFollow();
+        followBtn.addEventListener("click", async function () {
+            followBtn.disabled = true;
+            const r = await api("/api/novels/follow", {
+                method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token, id: novel.id }),
+            });
+            followBtn.disabled = false;
+            if (r.ok && r.data.ok) {
+                following = r.data.following;
+                followers = r.data.follower_count;
+                paintFollow();
+                toast(following ? "จะแจ้งเตือนเมื่อมีตอนใหม่" : "ปิดแจ้งเตือนแล้ว");
+            } else toast(r.data.error || "ทำรายการไม่สำเร็จ", true);
+        });
+        meta.appendChild(followBtn);
+
         if (canManage(novel.author)) {
             const del = el("button", "react-btn manage danger", "🗑️ ลบนิยาย");
             del.addEventListener("click", async function () {
@@ -1100,6 +1128,142 @@
 
     function stopChatPoll() {
         if (chatPoll) { clearInterval(chatPoll); chatPoll = null; }
+    }
+
+    // ---------- การแจ้งเตือน (กระดิ่ง) ----------
+    let notifPoll = null;
+
+    function notifIcon(type) {
+        if (type === "message") return "💬";
+        if (type === "announce") return "📢";
+        if (type === "chapter") return "📖";
+        return "🔔";
+    }
+
+    function setupNotifications() {
+        const bell = document.getElementById("bellBtn");
+        const panel = document.getElementById("notifPanel");
+        if (!bell || !panel) return;
+
+        bell.addEventListener("click", function (e) {
+            e.stopPropagation();
+            if (panel.style.display === "none") {
+                panel.style.display = "";
+                loadNotifications();
+            } else {
+                panel.style.display = "none";
+            }
+        });
+
+        // คลิกที่อื่นเพื่อปิด
+        document.addEventListener("click", function (e) {
+            if (panel.style.display !== "none" && !panel.contains(e.target) && e.target !== bell) {
+                panel.style.display = "none";
+            }
+        });
+
+        document.getElementById("notifReadAll").addEventListener("click", async function () {
+            await api("/api/notifications/read-all", {
+                method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token }),
+            });
+            loadNotifications();
+            refreshBadge();
+        });
+
+        // ฟอร์มส่งประกาศ (เฉพาะแอดมิน)
+        const announceBtn = document.getElementById("notifAnnounce");
+        const form = document.getElementById("announceForm");
+        if (me.role === "admin" && announceBtn) {
+            announceBtn.style.display = "";
+            announceBtn.addEventListener("click", function () {
+                form.style.display = form.style.display === "none" ? "" : "none";
+            });
+            document.getElementById("announceCancel").addEventListener("click", function () {
+                form.style.display = "none";
+            });
+            document.getElementById("announceSend").addEventListener("click", async function () {
+                const title = document.getElementById("announceTitle").value.trim();
+                const body = document.getElementById("announceBody").value.trim();
+                if (!title) { toast("กรุณากรอกหัวข้อประกาศ", true); return; }
+                const btn = document.getElementById("announceSend");
+                btn.disabled = true;
+                const r = await api("/api/notifications/announce", {
+                    method: "POST", headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ token, title, body }),
+                });
+                btn.disabled = false;
+                if (r.ok && r.data.ok) {
+                    document.getElementById("announceTitle").value = "";
+                    document.getElementById("announceBody").value = "";
+                    form.style.display = "none";
+                    toast("ส่งประกาศถึงสมาชิก " + r.data.sent + " คนแล้ว");
+                    loadNotifications();
+                    refreshBadge();
+                } else toast(r.data.error || "ส่งประกาศไม่สำเร็จ", true);
+            });
+        }
+
+        refreshBadge();
+        notifPoll = setInterval(refreshBadge, 45000);
+    }
+
+    async function refreshBadge() {
+        const res = await api("/api/notifications?token=" + encodeURIComponent(token));
+        if (!res.ok || !res.data.ok) return;
+        const badge = document.getElementById("bellBadge");
+        const n = res.data.unread || 0;
+        if (n > 0) {
+            badge.textContent = n > 99 ? "99+" : n;
+            badge.style.display = "";
+        } else {
+            badge.style.display = "none";
+        }
+    }
+
+    async function loadNotifications() {
+        const list = document.getElementById("notifList");
+        list.innerHTML = '<div class="feed-loading">กำลังโหลด...</div>';
+        const res = await api("/api/notifications?token=" + encodeURIComponent(token));
+        const items = (res.data && res.data.notifications) || [];
+        list.innerHTML = "";
+        if (!items.length) {
+            list.appendChild(el("div", "notif-empty", "ยังไม่มีการแจ้งเตือน"));
+            return;
+        }
+        items.forEach(function (n) {
+            const row = el("button", "notif-item" + (n.is_read ? "" : " unread"));
+            row.appendChild(el("span", "notif-icon", notifIcon(n.type)));
+            const main = el("span", "notif-main");
+            main.appendChild(el("span", "notif-item-title", n.title));
+            if (n.body) main.appendChild(el("span", "notif-body", n.body));
+            main.appendChild(el("span", "notif-time", timeAgo(n.created_at)));
+            row.appendChild(main);
+            if (!n.is_read) row.appendChild(el("span", "notif-dot"));
+
+            row.addEventListener("click", async function () {
+                if (!n.is_read) {
+                    await api("/api/notifications/read", {
+                        method: "POST", headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ token, id: n.id }),
+                    });
+                    row.classList.remove("unread");
+                    const dot = row.querySelector(".notif-dot");
+                    if (dot) dot.remove();
+                    refreshBadge();
+                }
+                document.getElementById("notifPanel").style.display = "none";
+                // พาไปยังหน้าที่เกี่ยวข้อง
+                if (n.link && n.link.indexOf("chat:") === 0) {
+                    showView("chat");
+                    setTimeout(function () { openChat(n.link.slice(5), null); }, 400);
+                } else if (n.link && n.link.indexOf("novel:") === 0) {
+                    showView("novels");
+                    setTimeout(function () { openNovel(n.link.slice(6)); }, 400);
+                }
+            });
+            list.appendChild(row);
+        });
     }
 
     // ---------- อาเรีย (AI) ----------

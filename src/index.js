@@ -84,6 +84,13 @@ async function handleApi(request, env, url) {
     if (p === "/api/novels/delete" && m === "POST") return deleteNovel(request, env);
     if (p === "/api/chapters/create" && m === "POST") return createChapter(request, env);
 
+    // การแจ้งเตือน
+    if (p === "/api/notifications" && m === "GET") return listNotifications(env, url);
+    if (p === "/api/notifications/read" && m === "POST") return markRead(request, env);
+    if (p === "/api/notifications/read-all" && m === "POST") return markAllRead(request, env);
+    if (p === "/api/notifications/announce" && m === "POST") return sendAnnouncement(request, env);
+    if (p === "/api/novels/follow" && m === "POST") return toggleFollow(request, env);
+
     // friends
     if (p === "/api/friends" && m === "GET") return listFriends(env, url);
     if (p === "/api/friends/add" && m === "POST") return addFriend(request, env);
@@ -831,6 +838,7 @@ async function listNovels(env) {
 
 async function getNovel(env, url) {
     const id = url.searchParams.get("id");
+    const viewer = await userFromToken(env, url.searchParams.get("token") || "");
     const novel = await env.DB.prepare(
         "SELECT id, author, title, synopsis, cover, created_at FROM novels WHERE id = ?"
     ).bind(id).first();
@@ -839,6 +847,17 @@ async function getNovel(env, url) {
         "SELECT id, title, content, created_at FROM chapters WHERE novel_id = ? ORDER BY id ASC"
     ).bind(id).all();
     novel.chapters = results || [];
+
+    const fc = await env.DB.prepare("SELECT COUNT(*) AS c FROM novel_follows WHERE novel_id = ?")
+        .bind(id).first();
+    novel.follower_count = fc ? fc.c : 0;
+    novel.following = false;
+    if (viewer) {
+        const f = await env.DB.prepare(
+            "SELECT id FROM novel_follows WHERE novel_id = ? AND username = ?"
+        ).bind(id, viewer).first();
+        novel.following = !!f;
+    }
     return json({ ok: true, novel });
 }
 
@@ -899,7 +918,150 @@ async function createChapter(request, env) {
     const chapter = await env.DB.prepare(
         "SELECT id, title, content, created_at FROM chapters WHERE id = ?"
     ).bind(res.meta.last_row_id).first();
+
+    // แจ้งเตือนคนที่กดติดตามนิยายเรื่องนี้ไว้
+    try {
+        const full = await env.DB.prepare("SELECT title FROM novels WHERE id = ?").bind(b.novel_id).first();
+        const { results } = await env.DB.prepare(
+            "SELECT username FROM novel_follows WHERE novel_id = ? AND username != ?"
+        ).bind(b.novel_id, username).all();
+        const followers = (results || []).map((r) => r.username);
+        if (followers.length) {
+            await env.DB.batch(followers.map((u) =>
+                env.DB.prepare(
+                    "INSERT INTO notifications (recipient, type, title, body, link, actor) " +
+                    "VALUES (?, 'chapter', ?, ?, ?, ?)"
+                ).bind(
+                    u,
+                    "\"" + (full ? full.title : "นิยาย") + "\" มีตอนใหม่",
+                    title,
+                    "novel:" + b.novel_id,
+                    username
+                )
+            ));
+        }
+    } catch (e) { /* แจ้งเตือนพลาดไม่ควรทำให้ลงตอนไม่สำเร็จ */ }
+
     return json({ ok: true, chapter });
+}
+
+// ===== การแจ้งเตือน =====
+
+// สร้างแจ้งเตือน — ถ้าเป็นข้อความจากคนเดิมที่ยังไม่ได้อ่าน จะรวมเป็นอันเดียวไม่ให้รก
+async function pushNotification(env, { recipient, type, title, body, link, actor }) {
+    if (!recipient) return;
+    try {
+        if (type === "message") {
+            const existing = await env.DB.prepare(
+                "SELECT id FROM notifications WHERE recipient = ? AND type = 'message' AND actor = ? AND is_read = 0"
+            ).bind(recipient, actor || "").first();
+            if (existing) {
+                await env.DB.prepare(
+                    "UPDATE notifications SET title = ?, body = ?, created_at = datetime('now') WHERE id = ?"
+                ).bind(title, body || null, existing.id).run();
+                return;
+            }
+        }
+        await env.DB.prepare(
+            "INSERT INTO notifications (recipient, type, title, body, link, actor) VALUES (?, ?, ?, ?, ?, ?)"
+        ).bind(recipient, type, title, body || null, link || null, actor || null).run();
+    } catch (e) { /* แจ้งเตือนพลาดต้องไม่ทำให้งานหลักล้ม */ }
+}
+
+async function listNotifications(env, url) {
+    const username = await userFromToken(env, url.searchParams.get("token") || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+
+    const { results } = await env.DB.prepare(
+        "SELECT id, type, title, body, link, actor, is_read, created_at FROM notifications " +
+        "WHERE recipient = ? ORDER BY id DESC LIMIT 50"
+    ).bind(username).all();
+    const row = await env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM notifications WHERE recipient = ? AND is_read = 0"
+    ).bind(username).first();
+
+    // เก็บไว้ไม่เกิน 200 รายการต่อคน
+    try {
+        await env.DB.prepare(
+            "DELETE FROM notifications WHERE recipient = ? AND id NOT IN " +
+            "(SELECT id FROM notifications WHERE recipient = ? ORDER BY id DESC LIMIT 200)"
+        ).bind(username, username).run();
+    } catch (e) { /* ignore */ }
+
+    return json({ ok: true, notifications: results || [], unread: row ? row.c : 0 });
+}
+
+async function markRead(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND recipient = ?")
+        .bind(b.id, username).run();
+    return json({ ok: true });
+}
+
+async function markAllRead(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+    await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE recipient = ? AND is_read = 0")
+        .bind(username).run();
+    return json({ ok: true });
+}
+
+// ประกาศจากผู้พัฒนา — เฉพาะแอดมิน
+async function sendAnnouncement(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
+    if (!(await isAdmin(env, username)))
+        return json({ error: "เฉพาะผู้ดูแลระบบเท่านั้นที่ส่งประกาศได้" }, 403);
+
+    const title = (b.title || "").trim();
+    const body = (b.body || "").trim();
+    if (!title) return json({ error: "กรุณากรอกหัวข้อประกาศ" }, 400);
+    if (title.length > 200 || body.length > 2000) return json({ error: "ข้อความยาวเกินไป" }, 400);
+
+    const { results } = await env.DB.prepare("SELECT username FROM users").all();
+    const targets = (results || []).map((r) => r.username);
+    if (!targets.length) return json({ ok: true, sent: 0 });
+
+    const stmts = targets.map((u) =>
+        env.DB.prepare(
+            "INSERT INTO notifications (recipient, type, title, body, actor) VALUES (?, 'announce', ?, ?, ?)"
+        ).bind(u, title, body || null, username)
+    );
+    await env.DB.batch(stmts);
+    return json({ ok: true, sent: targets.length });
+}
+
+// ติดตามนิยาย (เปิดแจ้งเตือนเมื่อมีตอนใหม่)
+async function toggleFollow(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
+
+    const novelId = parseInt(b.id, 10);
+    if (isNaN(novelId)) return json({ error: "รหัสนิยายไม่ถูกต้อง" }, 400);
+    const novel = await env.DB.prepare("SELECT id FROM novels WHERE id = ?").bind(novelId).first();
+    if (!novel) return json({ error: "ไม่พบนิยาย" }, 404);
+
+    const existing = await env.DB.prepare(
+        "SELECT id FROM novel_follows WHERE novel_id = ? AND username = ?"
+    ).bind(novelId, username).first();
+
+    let following;
+    if (existing) {
+        await env.DB.prepare("DELETE FROM novel_follows WHERE id = ?").bind(existing.id).run();
+        following = false;
+    } else {
+        await env.DB.prepare("INSERT INTO novel_follows (novel_id, username) VALUES (?, ?)")
+            .bind(novelId, username).run();
+        following = true;
+    }
+    const row = await env.DB.prepare("SELECT COUNT(*) AS c FROM novel_follows WHERE novel_id = ?")
+        .bind(novelId).first();
+    return json({ ok: true, following, follower_count: row ? row.c : 0 });
 }
 
 // ===== Friends =====
@@ -966,6 +1128,15 @@ async function sendMessage(request, env) {
     const message = await env.DB.prepare(
         "SELECT id, sender, recipient, content, created_at FROM messages WHERE id = ?"
     ).bind(res.meta.last_row_id).first();
+
+    await pushNotification(env, {
+        recipient: to,
+        type: "message",
+        title: username + " ส่งข้อความถึงคุณ",
+        body: content.slice(0, 120),
+        link: "chat:" + username,
+        actor: username,
+    });
 
     // แจ้ง Durable Object ให้กระจายข้อความแบบเรียลไทม์ (ถ้ามีคนออนไลน์อยู่)
     try {
@@ -1059,6 +1230,16 @@ export class ChatRoom {
         ).bind(res.meta.last_row_id).first();
 
         this.broadcast({ type: "message", message: saved });
+
+        // แจ้งเตือนผู้รับ (กระดิ่ง)
+        await pushNotification(this.env, {
+            recipient: to,
+            type: "message",
+            title: sender + " ส่งข้อความถึงคุณ",
+            body: content.slice(0, 120),
+            link: "chat:" + sender,
+            actor: sender,
+        });
     }
 
     async webSocketClose(ws, code, reason, wasClean) {

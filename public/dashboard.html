@@ -40,7 +40,25 @@
         </div>
 
         <div class="header-actions">
-            <button class="icon-btn" title="แจ้งเตือน">🔔</button>
+            <div class="bell-wrap">
+                <button class="icon-btn" id="bellBtn" title="แจ้งเตือน">🔔<span class="bell-badge" id="bellBadge" style="display:none">0</span></button>
+                <div class="notif-panel" id="notifPanel" style="display:none">
+                    <div class="notif-head">
+                        <span class="notif-title">การแจ้งเตือน</span>
+                        <button class="notif-action" id="notifReadAll" type="button">อ่านทั้งหมด</button>
+                        <button class="notif-action admin-only" id="notifAnnounce" type="button" style="display:none">📢 ส่งประกาศ</button>
+                    </div>
+                    <div class="announce-form" id="announceForm" style="display:none">
+                        <input type="text" id="announceTitle" placeholder="หัวข้อประกาศ">
+                        <textarea id="announceBody" rows="2" placeholder="รายละเอียด (ไม่บังคับ)"></textarea>
+                        <div class="announce-actions">
+                            <button class="announce-cancel" id="announceCancel" type="button">ยกเลิก</button>
+                            <button class="announce-send" id="announceSend" type="button">ส่งถึงสมาชิกทุกคน</button>
+                        </div>
+                    </div>
+                    <div class="notif-list" id="notifList"></div>
+                </div>
+            </div>
             <div class="avatar" id="myAvatar" title="">A</div>
             <a href="index.html" class="btn-logout" id="logoutBtn">ออกจากระบบ</a>
         </div>
