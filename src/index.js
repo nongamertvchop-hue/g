@@ -1,9 +1,15 @@
 // เรือนอักษร — Worker หลังบ้าน (API + เสิร์ฟไฟล์ static)
 // เส้นทาง /api/* จัดการที่นี่, ที่เหลือส่งต่อให้ไฟล์ใน public/
 
-const ADMIN_USER = "adminth";
-const ADMIN_PASS = "123456";
+// ไม่มีรหัสผ่านฝังในโค้ดอีกต่อไป — สิทธิ์แอดมินอ่านจากคอลัมน์ role ในฐานข้อมูล
 const COVERS = ["cover-1", "cover-2", "cover-3", "cover-4", "cover-5", "cover-6"];
+
+// ความปลอดภัย
+const PBKDF2_ITERATIONS = 210000;      // มาตรฐาน OWASP
+const SESSION_DAYS = 30;               // เซสชันหมดอายุใน 30 วัน
+const MAX_FAILS_PER_USER = 5;          // กรอกผิดเกินนี้ใน 15 นาที = ล็อกชั่วคราว
+const MAX_FAILS_PER_IP = 20;
+const LOCK_WINDOW_MIN = 15;
 
 export default {
     async fetch(request, env) {
@@ -23,7 +29,26 @@ export default {
                 return new Response("media error", { status: 500 });
             }
         }
-        return env.ASSETS.fetch(request);
+        // เสิร์ฟหน้าเว็บพร้อมส่วนหัวความปลอดภัย
+        const res = await env.ASSETS.fetch(request);
+        const headers = new Headers(res.headers);
+        headers.set("X-Content-Type-Options", "nosniff");
+        headers.set("X-Frame-Options", "SAMEORIGIN");
+        headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+        headers.set("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+        headers.set("Content-Security-Policy",
+            "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline'; " +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+            "font-src 'self' https://fonts.gstatic.com; " +
+            "img-src 'self' data: blob:; " +
+            "media-src 'self' blob:; " +
+            "connect-src 'self'; " +
+            "frame-ancestors 'self'; " +
+            "base-uri 'self'; " +
+            "form-action 'self'"
+        );
+        return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
     },
 };
 
@@ -144,7 +169,7 @@ async function buildSiteContext(env, username) {
     if (stats) {
         lines.push(
             "ภาพรวม: นิยาย " + stats.novels + " เรื่อง, ตอนทั้งหมด " + stats.chapters + " ตอน, " +
-            "โพสต์ " + stats.posts + " โพสต์, สมาชิกที่สมัคร " + stats.users + " คน (ไม่นับแอดมิน), " +
+            "โพสต์ " + stats.posts + " โพสต์, สมาชิกทั้งหมด " + stats.users + " คน, " +
             "หัวใจรวม " + stats.likes + ", คอมเมนต์รวม " + stats.comments + ", แชร์รวม " + stats.shares
         );
     }
@@ -473,11 +498,16 @@ async function register(request, env) {
     const email = (b.email || "").trim() || null;
 
     if (username.length < 3) return json({ error: "ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร" }, 400);
-    if (username.toLowerCase() === ADMIN_USER.toLowerCase())
-        return json({ error: "ชื่อผู้ใช้นี้ถูกใช้แล้ว" }, 409);
+    if (username.length > 24) return json({ error: "ชื่อผู้ใช้ยาวเกินไป (ไม่เกิน 24 ตัวอักษร)" }, 400);
+    if (!/^[\p{L}\p{N}_.-]+$/u.test(username))
+        return json({ error: "ชื่อผู้ใช้ใช้ได้เฉพาะตัวอักษร ตัวเลข จุด ขีดกลาง และขีดล่าง" }, 400);
     if (password.length < 6) return json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }, 400);
+    if (password.length > 200) return json({ error: "รหัสผ่านยาวเกินไป" }, 400);
 
-    const existing = await env.DB.prepare("SELECT id FROM users WHERE username = ?").bind(username).first();
+    // เทียบแบบไม่สนตัวพิมพ์ กันการสมัครชื่อคล้ายกันเพื่อสวมรอย
+    const existing = await env.DB.prepare(
+        "SELECT id FROM users WHERE lower(username) = lower(?)"
+    ).bind(username).first();
     if (existing) return json({ error: "ชื่อผู้ใช้นี้ถูกใช้แล้ว" }, 409);
 
     const salt = toHex(crypto.getRandomValues(new Uint8Array(16)));
@@ -492,25 +522,77 @@ async function login(request, env) {
     const b = await readJson(request);
     const username = (b.username || "").trim();
     const password = b.password || "";
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+
+    // กันการเดารหัสผ่านซ้ำ ๆ (brute force)
+    const locked = await isLockedOut(env, username, ip);
+    if (locked) {
+        return json({
+            error: "กรอกรหัสผ่านผิดหลายครั้งเกินไป กรุณารออีก " + LOCK_WINDOW_MIN + " นาทีแล้วลองใหม่",
+        }, 429);
+    }
 
     let validUser = null;
-    if (username === ADMIN_USER && password === ADMIN_PASS) {
-        validUser = ADMIN_USER;
-    } else {
-        const row = await env.DB.prepare(
-            "SELECT username, password_hash, salt FROM users WHERE username = ?"
-        ).bind(username).first();
-        if (row) {
-            const hash = await pbkdf2(password, row.salt);
-            if (hash === row.password_hash) validUser = row.username;
-        }
+    const row = await env.DB.prepare(
+        "SELECT username, password_hash, salt FROM users WHERE username = ?"
+    ).bind(username).first();
+    if (row) {
+        const hash = await pbkdf2(password, row.salt);
+        if (timingSafeEqual(hash, row.password_hash)) validUser = row.username;
     }
+
+    await recordAttempt(env, username, ip, !!validUser);
+
     if (!validUser) return json({ error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" }, 401);
 
     const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, "");
-    await env.DB.prepare("INSERT INTO sessions (token, username) VALUES (?, ?)")
-        .bind(token, validUser).run();
+    await env.DB.prepare(
+        "INSERT INTO sessions (token, username, expires_at) VALUES (?, ?, datetime('now', '+" + SESSION_DAYS + " days'))"
+    ).bind(token, validUser).run();
+
+    // ล้างเซสชันที่หมดอายุทิ้ง ไม่ให้ตารางโตไม่หยุด
+    try {
+        await env.DB.prepare("DELETE FROM sessions WHERE expires_at IS NOT NULL AND expires_at < datetime('now')").run();
+    } catch (e) { /* ไม่กระทบการล็อกอิน */ }
+
     return json({ ok: true, token, username: validUser });
+}
+
+// ===== ป้องกันการเดารหัสผ่าน =====
+async function isLockedOut(env, username, ip) {
+    try {
+        const since = "datetime('now', '-" + LOCK_WINDOW_MIN + " minutes')";
+        const row = await env.DB.prepare(
+            "SELECT " +
+            "(SELECT COUNT(*) FROM login_attempts WHERE username = ? AND success = 0 AND created_at > " + since + ") AS by_user, " +
+            "(SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND success = 0 AND created_at > " + since + ") AS by_ip"
+        ).bind(username, ip).first();
+        if (!row) return false;
+        return row.by_user >= MAX_FAILS_PER_USER || row.by_ip >= MAX_FAILS_PER_IP;
+    } catch (e) {
+        return false;   // ถ้าตรวจไม่ได้ อย่าล็อกผู้ใช้ออกจากระบบ
+    }
+}
+
+async function recordAttempt(env, username, ip, success) {
+    try {
+        await env.DB.batch([
+            env.DB.prepare("INSERT INTO login_attempts (username, ip, success) VALUES (?, ?, ?)")
+                .bind(username, ip, success ? 1 : 0),
+            // ล็อกอินสำเร็จ = ล้างประวัติผิดพลาดของชื่อนี้
+            success
+                ? env.DB.prepare("DELETE FROM login_attempts WHERE username = ? AND success = 0").bind(username)
+                : env.DB.prepare("DELETE FROM login_attempts WHERE created_at < datetime('now', '-1 day')"),
+        ]);
+    } catch (e) { /* ไม่กระทบการล็อกอิน */ }
+}
+
+// เปรียบเทียบแบบใช้เวลาคงที่ กันการวัดเวลาเพื่อเดาแฮช
+function timingSafeEqual(a, b) {
+    if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return diff === 0;
 }
 
 async function logout(request, env) {
@@ -526,26 +608,35 @@ async function me(request, env, url) {
 }
 
 async function userInfo(env, username) {
-    if (username === ADMIN_USER) return { username, id: 0, role: "admin", email: null, created_at: null };
-    const row = await env.DB.prepare("SELECT id, email, created_at FROM users WHERE username = ?")
+    const row = await env.DB.prepare("SELECT id, email, created_at, role FROM users WHERE username = ?")
         .bind(username).first();
     return {
         username,
         id: row ? row.id : null,
         email: row ? row.email : null,
         created_at: row ? row.created_at : null,
-        role: "user",
+        role: row ? row.role : "user",
     };
 }
 
-function isAdmin(username) {
-    return username === ADMIN_USER;
+// สิทธิ์แอดมินอ่านจากฐานข้อมูล ไม่ใช่ชื่อที่ฝังในโค้ด
+async function isAdmin(env, username) {
+    const row = await env.DB.prepare("SELECT role FROM users WHERE username = ?").bind(username).first();
+    return !!row && row.role === "admin";
 }
 
 async function userFromToken(env, token) {
     if (!token) return null;
-    const row = await env.DB.prepare("SELECT username FROM sessions WHERE token = ?").bind(token).first();
-    return row ? row.username : null;
+    const row = await env.DB.prepare(
+        "SELECT username, expires_at FROM sessions WHERE token = ?"
+    ).bind(token).first();
+    if (!row) return null;
+    // เซสชันหมดอายุ = ใช้ไม่ได้ และลบทิ้ง
+    if (row.expires_at && Date.parse(row.expires_at.replace(" ", "T") + "Z") < Date.now()) {
+        try { await env.DB.prepare("DELETE FROM sessions WHERE token = ?").bind(token).run(); } catch (e) { /* ignore */ }
+        return null;
+    }
+    return row.username;
 }
 
 // ===== Posts =====
@@ -627,7 +718,7 @@ async function updatePost(request, env) {
 
     const post = await env.DB.prepare("SELECT author FROM posts WHERE id = ?").bind(b.id).first();
     if (!post) return json({ error: "ไม่พบโพสต์" }, 404);
-    if (post.author !== username && !isAdmin(username))
+    if (post.author !== username && !(await isAdmin(env, username)))
         return json({ error: "คุณไม่มีสิทธิ์แก้ไขโพสต์นี้" }, 403);
 
     const content = (b.content || "").trim();
@@ -650,7 +741,7 @@ async function deletePost(request, env) {
 
     const post = await env.DB.prepare("SELECT author, media_key FROM posts WHERE id = ?").bind(b.id).first();
     if (!post) return json({ error: "ไม่พบโพสต์" }, 404);
-    if (post.author !== username && !isAdmin(username))
+    if (post.author !== username && !(await isAdmin(env, username)))
         return json({ error: "คุณไม่มีสิทธิ์ลบโพสต์นี้" }, 403);
 
     // ลบไฟล์สื่อใน R2 ด้วย ไม่ให้เหลือขยะ
@@ -719,7 +810,7 @@ async function deleteComment(request, env) {
 
     const c = await env.DB.prepare("SELECT author FROM comments WHERE id = ?").bind(b.id).first();
     if (!c) return json({ error: "ไม่พบคอมเมนต์" }, 404);
-    if (c.author !== username && !isAdmin(username))
+    if (c.author !== username && !(await isAdmin(env, username)))
         return json({ error: "คุณไม่มีสิทธิ์ลบคอมเมนต์นี้" }, 403);
 
     await env.DB.prepare("DELETE FROM comments WHERE id = ?").bind(b.id).run();
@@ -777,7 +868,7 @@ async function deleteNovel(request, env) {
 
     const novel = await env.DB.prepare("SELECT author FROM novels WHERE id = ?").bind(b.id).first();
     if (!novel) return json({ error: "ไม่พบนิยาย" }, 404);
-    if (novel.author !== username && !isAdmin(username))
+    if (novel.author !== username && !(await isAdmin(env, username)))
         return json({ error: "คุณไม่มีสิทธิ์ลบนิยายนี้" }, 403);
 
     await env.DB.prepare("DELETE FROM chapters WHERE novel_id = ?").bind(b.id).run();
@@ -792,7 +883,7 @@ async function createChapter(request, env) {
 
     const novel = await env.DB.prepare("SELECT author FROM novels WHERE id = ?").bind(b.novel_id).first();
     if (!novel) return json({ error: "ไม่พบนิยาย" }, 404);
-    if (novel.author !== username && !isAdmin(username))
+    if (novel.author !== username && !(await isAdmin(env, username)))
         return json({ error: "คุณไม่มีสิทธิ์เพิ่มตอนในนิยายนี้" }, 403);
 
     const title = (b.title || "").trim();
@@ -892,7 +983,7 @@ async function pbkdf2(password, saltHex) {
     const enc = new TextEncoder();
     const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
     const bits = await crypto.subtle.deriveBits(
-        { name: "PBKDF2", salt: hexToBytes(saltHex), iterations: 100000, hash: "SHA-256" }, key, 256
+        { name: "PBKDF2", salt: hexToBytes(saltHex), iterations: PBKDF2_ITERATIONS, hash: "SHA-256" }, key, 256
     );
     return toHex(new Uint8Array(bits));
 }
