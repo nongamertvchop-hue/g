@@ -2783,8 +2783,14 @@ img, video, canvas { max-width: 100%; }
 @media (max-width: 1024px) {
     .app-layout { grid-template-columns: 200px minmax(0, 1fr); }
     .sidebar-right { display: none; }
-    .header-center { max-width: 440px; }
+    /* พื้นที่ไม่พอสำหรับแถวเดียว: ย้ายช่องค้นหา+แท็บลงบรรทัดใหม่
+       (ไม่งั้นปุ่มออกจากระบบจะถูกตัดบนไอแพด) */
+    .app-header { flex-wrap: wrap; }
+    .app-header .header-center { order: 3; flex: 1 1 100%; max-width: none; margin: 0; }
 }
+
+/* ชื่อแท็บต้องไม่ตกบรรทัด */
+.tab-btn { white-space: nowrap; }
 
 /* ---------- ไอแพดแนวตั้ง / แท็บเล็ตเล็ก ---------- */
 @media (max-width: 900px) {
