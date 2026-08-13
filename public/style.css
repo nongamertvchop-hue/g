@@ -2749,8 +2749,11 @@ body::after {
    บล็อกนี้อยู่ท้ายไฟล์ จึงมีผลเหนือกฎด้านบน
    ============================================================ */
 
-/* กันเนื้อหาล้นขอบจอในทุกกรณี */
-html, body { max-width: 100%; overflow-x: hidden; }
+/* กันเนื้อหาล้นขอบจอในทุกกรณี
+   สำคัญ: ห้ามใส่ overflow-x ที่ body เพราะจะทำให้ body กลายเป็นกล่องเลื่อน
+   แล้ว position:sticky ของหัวเว็บกับแถบข้างจะพังทันที */
+html { overflow-x: hidden; }
+html, body { max-width: 100%; }
 img, video, canvas { max-width: 100%; }
 .post-text, .comment-text, .gm-text, .aria-bubble, .chat-msg,
 .novel-detail-synopsis, .chapter-read-content p { overflow-wrap: anywhere; }
