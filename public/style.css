@@ -39,7 +39,8 @@ body {
     align-items: center;
     justify-content: center;
     position: relative;
-    overflow-x: hidden;
+    /* ไม่ใส่ overflow-x ที่นี่ — จะทำให้ body เป็นกล่องเลื่อนและ sticky พัง
+       (การกันล้นแนวนอนทำที่ html แทน ดูท้ายไฟล์) */
 }
 
 /* หมอกแสงพื้นหลัง — วงกลม 2 วงมุมตรงข้ามกัน สร้างมิติ */
