@@ -1414,6 +1414,90 @@ body::after {
 .react-btn.manage.danger:hover { background: rgba(126,31,43,0.15); }
 .composer-msg.ok { color: #7fc98a; }
 
+/* ===== หน้าต่างโปรไฟล์ลอย (กดที่รูปโปรไฟล์) ===== */
+.me-wrap { position: relative; }
+
+#myAvatar { transition: transform 0.2s, box-shadow 0.2s; }
+#myAvatar:hover { transform: scale(1.06); box-shadow: 0 0 16px -2px rgba(201, 162, 75, 0.7); }
+
+.my-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 310px;
+    max-width: 90vw;
+    background: linear-gradient(160deg, rgba(26, 22, 36, 0.985), rgba(13, 11, 18, 0.985));
+    border: 1px solid rgba(201, 162, 75, 0.3);
+    border-radius: 14px;
+    box-shadow: 0 26px 60px -20px rgba(0, 0, 0, 0.85);
+    z-index: 200;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: aria-in 0.2s ease;
+}
+
+.mp-head { display: flex; align-items: center; gap: 12px; }
+.mp-avatar { width: 48px; height: 48px; font-size: 21px; flex-shrink: 0; }
+.mp-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mp-alias { font-family: var(--font-serif); font-size: 20px; color: var(--ink); word-break: break-all; }
+
+.mp-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-faint); }
+.mp-status.online { color: #7fc98a; }
+.mp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); }
+.mp-status.online .mp-dot { background: #6fbf73; box-shadow: 0 0 8px 1px rgba(111, 191, 115, 0.7); }
+.mp-role { font-size: 11px; color: var(--gold-soft); }
+
+.mp-coins {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    background: rgba(201, 162, 75, 0.1);
+    border: 1px solid rgba(201, 162, 75, 0.3);
+    border-radius: 11px;
+    color: var(--ink);
+    font-size: 14px;
+}
+.mp-coins b { font-family: var(--font-serif); font-size: 22px; color: var(--gold-soft); }
+.mp-coin-icon { font-size: 18px; }
+
+.mp-grid { display: flex; flex-direction: column; gap: 8px; }
+
+.mp-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 12px;
+    background: rgba(10, 10, 15, 0.45);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.mp-item-icon { font-size: 16px; flex-shrink: 0; }
+.mp-item-text { display: flex; flex-direction: column; }
+.mp-item-label { font-size: 11.5px; color: var(--ink-faint); }
+.mp-item-value { font-size: 14px; color: var(--ink); font-weight: 500; }
+
+.my-panel-link {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px;
+    color: var(--gold-soft);
+    font-family: var(--font-body);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.22s;
+}
+
+.my-panel-link:hover { border-color: var(--gold-deep); background: rgba(201, 162, 75, 0.1); }
+
+@media (max-width: 760px) {
+    .my-panel { right: -40px; }
+}
+
 /* ===== แชทโลก ===== */
 .global-card {
     background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));

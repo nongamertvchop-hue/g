@@ -65,6 +65,9 @@ async function handleApi(request, env, url) {
     if (p === "/api/me" && m === "GET") return me(request, env, url);
     if (p === "/api/alias" && m === "POST") return changeAlias(request, env);
     if (p === "/api/profile" && m === "GET") return publicProfile(env, url);
+    if (p === "/api/mystats" && m === "GET") return myStats(env, url);
+    if (p === "/api/heartbeat" && m === "POST") return heartbeat(request, env);
+    if (p === "/api/read" && m === "POST") return recordRead(request, env);
 
     // แชทโลก
     if (p === "/api/global" && m === "GET") return listGlobal(env, url);
@@ -558,6 +561,84 @@ async function usernameFromAlias(env, alias) {
     return row ? row.username : null;
 }
 
+// ===== สถิติผู้ใช้ (เหรียญ / เวลาอ่าน / เวลาในเว็บ / ออนไลน์) =====
+const ONLINE_WINDOW_SEC = 120;   // เห็นล่าสุดภายใน 2 นาที = ออนไลน์
+const COIN_PER_CHAPTER = 1;      // อ่านตอนใหม่ได้ 1 เหรียญ
+const COIN_PER_CHAPTER_PUBLISH = 5;
+
+async function myStats(env, url) {
+    const username = await userFromToken(env, url.searchParams.get("token") || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+
+    const u = await env.DB.prepare(
+        "SELECT alias, role, coins, read_seconds, site_seconds, last_seen, created_at FROM users WHERE username = ?"
+    ).bind(username).first();
+    if (!u) return json({ error: "ไม่พบผู้ใช้" }, 404);
+
+    const r = await env.DB.prepare(
+        "SELECT COUNT(DISTINCT novel_id) AS novels, COUNT(*) AS chapters FROM chapter_reads WHERE username = ?"
+    ).bind(username).first();
+
+    return json({
+        ok: true,
+        stats: {
+            alias: u.alias,
+            role: u.role,
+            online: true,                       // กำลังเรียกอยู่ = ออนไลน์
+            coins: u.coins || 0,
+            novels_read: r ? r.novels : 0,
+            chapters_read: r ? r.chapters : 0,
+            read_seconds: u.read_seconds || 0,
+            site_seconds: u.site_seconds || 0,
+            joined: u.created_at,
+        },
+    });
+}
+
+// หน้าเว็บส่งสัญญาณทุก 30 วินาที เพื่อสะสมเวลาและบอกว่ายังออนไลน์
+async function heartbeat(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+
+    // จำกัดไม่เกิน 120 วินาทีต่อครั้ง กันการยิงโกงเวลา
+    let secs = parseInt(b.seconds, 10);
+    if (isNaN(secs) || secs < 0) secs = 0;
+    if (secs > 120) secs = 120;
+    const reading = !!b.reading;
+
+    await env.DB.prepare(
+        "UPDATE users SET site_seconds = site_seconds + ?, read_seconds = read_seconds + ?, " +
+        "last_seen = datetime('now') WHERE username = ?"
+    ).bind(secs, reading ? secs : 0, username).run();
+
+    return json({ ok: true });
+}
+
+// บันทึกว่าอ่านตอนไหนแล้ว (ครั้งแรกได้เหรียญ)
+async function recordRead(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "unauthorized" }, 401);
+
+    const novelId = parseInt(b.novel_id, 10);
+    const chapterId = parseInt(b.chapter_id, 10);
+    if (isNaN(novelId) || isNaN(chapterId)) return json({ error: "ข้อมูลไม่ถูกต้อง" }, 400);
+
+    const existing = await env.DB.prepare(
+        "SELECT id FROM chapter_reads WHERE username = ? AND chapter_id = ?"
+    ).bind(username, chapterId).first();
+    if (existing) return json({ ok: true, first_time: false });
+
+    await env.DB.batch([
+        env.DB.prepare("INSERT INTO chapter_reads (username, novel_id, chapter_id) VALUES (?, ?, ?)")
+            .bind(username, novelId, chapterId),
+        env.DB.prepare("UPDATE users SET coins = coins + ? WHERE username = ?")
+            .bind(COIN_PER_CHAPTER, username),
+    ]);
+    return json({ ok: true, first_time: true, coins_earned: COIN_PER_CHAPTER });
+}
+
 // ===== ตัวกรองคำหยาบ =====
 const BAD_WORDS = [
     // ไทย
@@ -665,9 +746,12 @@ async function publicProfile(env, url) {
     if (!alias) return json({ error: "ไม่พบนามแฝง" }, 400);
 
     const row = await env.DB.prepare(
-        "SELECT id, username, alias, role, created_at FROM users WHERE alias = ?"
+        "SELECT id, username, alias, role, created_at, coins, last_seen FROM users WHERE alias = ?"
     ).bind(alias).first();
     if (!row) return json({ error: "ไม่พบผู้ใช้นี้" }, 404);
+
+    const online = !!row.last_seen &&
+        (Date.now() - Date.parse(row.last_seen.replace(" ", "T") + "Z")) < ONLINE_WINDOW_SEC * 1000;
 
     const stats = await env.DB.prepare(
         "SELECT (SELECT COUNT(*) FROM posts WHERE author = ?) AS posts, " +
@@ -681,6 +765,8 @@ async function publicProfile(env, url) {
         profile: {
             alias: row.alias,
             role: row.role,
+            online,
+            coins: row.coins || 0,
             joined: row.created_at,
             posts: stats ? stats.posts : 0,
             novels: stats ? stats.novels : 0,
@@ -1166,6 +1252,12 @@ async function createChapter(request, env) {
     const chapter = await env.DB.prepare(
         "SELECT id, title, content, created_at FROM chapters WHERE id = ?"
     ).bind(res.meta.last_row_id).first();
+
+    // นักเขียนได้เหรียญเมื่อลงตอนใหม่
+    try {
+        await env.DB.prepare("UPDATE users SET coins = coins + ? WHERE username = ?")
+            .bind(COIN_PER_CHAPTER_PUBLISH, username).run();
+    } catch (e) { /* ignore */ }
 
     // แจ้งเตือนคนที่กดติดตามนิยายเรื่องนี้ไว้
     try {

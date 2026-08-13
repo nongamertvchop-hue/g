@@ -130,6 +130,8 @@
         setupAria();
         setupNotifications();
         setupGlobal();
+        setupMyPanel();
+        startHeartbeat();
         setupWrite();
         setupChatControls();
         setupSidebarNav();
@@ -156,6 +158,7 @@
         // ปิดการเชื่อมต่อแชทเมื่อออกจากหน้าแชท
         if (name !== "chat") { closeSocket(); stopChatPoll(); }
         if (name !== "global") stopGlobalPoll();
+        if (name !== "novels") setReading(false);   // ออกจากหน้านิยาย = หยุดนับเวลาอ่าน
 
         if (name === "feed") loadPosts();
         if (name === "novels") loadNovels();
@@ -882,8 +885,18 @@
     function renderChapterRead(wrap, novel, index) {
         const c = novel.chapters[index];
         wrap.innerHTML = "";
+
+        // เริ่มนับเวลาอ่าน + บันทึกว่าอ่านตอนนี้แล้ว (ครั้งแรกได้เหรียญ)
+        setReading(true);
+        api("/api/read", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ token, novel_id: novel.id, chapter_id: c.id }),
+        }).then(function (r) {
+            if (r.ok && r.data.ok && r.data.first_time) toast("อ่านตอนใหม่ +1 🪙");
+        });
+
         const back = el("button", "back-btn", "← สารบัญ");
-        back.addEventListener("click", () => renderChapterList(wrap, novel));
+        back.addEventListener("click", () => { setReading(false); renderChapterList(wrap, novel); });
         wrap.appendChild(back);
         wrap.appendChild(el("h2", "chapter-read-title", "ตอนที่ " + (index + 1) + " · " + c.title));
         const content = el("div", "chapter-read-content");
@@ -1136,6 +1149,108 @@
 
     function stopChatPoll() {
         if (chatPoll) { clearInterval(chatPoll); chatPoll = null; }
+    }
+
+    // ---------- หน้าต่างโปรไฟล์ลอย (กดที่รูปโปรไฟล์) ----------
+    function fmtDuration(sec) {
+        const s = Math.max(0, Math.floor(sec || 0));
+        const h = Math.floor(s / 3600);
+        const mnt = Math.floor((s % 3600) / 60);
+        if (h > 0) return h + " ชม. " + mnt + " นาที";
+        if (mnt > 0) return mnt + " นาที";
+        return s + " วินาที";
+    }
+
+    function setupMyPanel() {
+        const av = document.getElementById("myAvatar");
+        const panel = document.getElementById("myPanel");
+        if (!av || !panel) return;
+
+        av.style.cursor = "pointer";
+        av.addEventListener("click", function (e) {
+            e.stopPropagation();
+            if (panel.style.display === "none") {
+                panel.style.display = "";
+                loadMyStats();
+            } else {
+                panel.style.display = "none";
+            }
+        });
+        document.addEventListener("click", function (e) {
+            if (panel.style.display !== "none" && !panel.contains(e.target) && e.target !== av) {
+                panel.style.display = "none";
+            }
+        });
+        const goProfile = document.getElementById("myPanelProfile");
+        if (goProfile) goProfile.addEventListener("click", function () {
+            panel.style.display = "none";
+            showView("profile");
+        });
+    }
+
+    async function loadMyStats() {
+        const body = document.getElementById("myPanelBody");
+        body.innerHTML = '<div class="feed-loading">กำลังโหลด...</div>';
+        const res = await api("/api/mystats?token=" + encodeURIComponent(token));
+        if (!res.ok || !res.data.ok) {
+            body.innerHTML = '<div class="feed-loading">โหลดข้อมูลไม่สำเร็จ</div>';
+            return;
+        }
+        const s = res.data.stats;
+        body.innerHTML = "";
+
+        const head = el("div", "mp-head");
+        head.appendChild(el("div", "avatar mp-avatar", initial((s.alias || "?").replace("#", ""))));
+        const idBox = el("div", "mp-id");
+        idBox.appendChild(el("span", "mp-alias", s.alias));
+        const status = el("span", "mp-status" + (s.online ? " online" : ""));
+        status.appendChild(el("span", "mp-dot"));
+        status.appendChild(document.createTextNode(s.online ? "ออนไลน์" : "ออฟไลน์"));
+        idBox.appendChild(status);
+        if (s.role === "admin") idBox.appendChild(el("span", "mp-role", "แอดมิน / เจ้าของ"));
+        head.appendChild(idBox);
+        body.appendChild(head);
+
+        const coinRow = el("div", "mp-coins");
+        coinRow.appendChild(el("span", "mp-coin-icon", "🪙"));
+        coinRow.appendChild(el("b", null, String(s.coins)));
+        coinRow.appendChild(document.createTextNode(" เหรียญ"));
+        body.appendChild(coinRow);
+
+        const grid = el("div", "mp-grid");
+        [
+            ["📚", "นิยายที่อ่านไป", s.novels_read + " เรื่อง"],
+            ["📖", "ตอนที่อ่านไป", s.chapters_read + " ตอน"],
+            ["⏳", "เวลาที่อ่านนิยาย", fmtDuration(s.read_seconds)],
+            ["🕒", "เวลาที่อยู่ในเว็บ", fmtDuration(s.site_seconds)],
+        ].forEach(function (row) {
+            const item = el("div", "mp-item");
+            item.appendChild(el("span", "mp-item-icon", row[0]));
+            const t = el("div", "mp-item-text");
+            t.appendChild(el("span", "mp-item-label", row[1]));
+            t.appendChild(el("span", "mp-item-value", row[2]));
+            item.appendChild(t);
+            grid.appendChild(item);
+        });
+        body.appendChild(grid);
+    }
+
+    // ---------- นับเวลาอยู่ในเว็บ / เวลาอ่านนิยาย ----------
+    let hbTimer = null;
+    let readingNow = false;
+    const HB_SECONDS = 30;
+
+    function setReading(on) { readingNow = !!on; }
+
+    function startHeartbeat() {
+        if (hbTimer) return;
+        hbTimer = setInterval(async function () {
+            if (document.hidden) return;   // ไม่นับตอนสลับแท็บไปทำอย่างอื่น
+            await api("/api/heartbeat", {
+                method: "POST", headers: { "content-type": "application/json" },
+                body: JSON.stringify({ token, seconds: HB_SECONDS, reading: readingNow }),
+            });
+        }, HB_SECONDS * 1000);
     }
 
     // ---------- แชทโลก ----------
@@ -1738,8 +1853,8 @@
             });
         }
 
-        const postsRes = await api("/api/posts");
-        const novelsRes = await api("/api/novels");
+        const postsRes = await api("/api/posts?token=" + encodeURIComponent(token));
+        const novelsRes = await api("/api/novels?token=" + encodeURIComponent(token));
         const myPosts = (postsRes.data.posts || []).filter(p => p.is_mine);
         const myNovels = (novelsRes.data.novels || []).filter(n => n.is_mine);
 
