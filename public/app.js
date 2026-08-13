@@ -211,7 +211,8 @@
     });
 
     // ---------- view router ----------
-    const featureViews = ["feed", "global", "menu", "novels", "chat", "write", "profile", "clips", "aria"];
+    const featureViews = ["feed", "global", "live", "videos", "menu",
+        "novels", "chat", "write", "profile", "clips", "topup", "aria"];
 
     function showView(name) {
         featureViews.forEach(function (v) {
@@ -219,12 +220,18 @@
             if (node) node.style.display = (v === name) ? "" : "none";
         });
 
-        const tabFeed = document.getElementById("tabFeed");
-        const tabGlobal = document.getElementById("tabGlobal");
+        // แท็บที่มีหน้าเป็นของตัวเอง ที่เหลือถือว่าอยู่ใต้ "แท็บแท็บ"
+        const tabMap = { tabFeed: "feed", tabGlobal: "global", tabLive: "live", tabVideos: "videos" };
+        let matched = false;
+        Object.keys(tabMap).forEach(function (id) {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            const on = tabMap[id] === name;
+            if (on) matched = true;
+            btn.classList.toggle("active", on);
+        });
         const tabMenu = document.getElementById("tabMenu");
-        tabFeed.classList.toggle("active", name === "feed");
-        tabGlobal.classList.toggle("active", name === "global");
-        tabMenu.classList.toggle("active", name !== "feed" && name !== "global");
+        if (tabMenu) tabMenu.classList.toggle("active", !matched);
 
         // ปิดการเชื่อมต่อแชทเมื่อออกจากหน้าแชท
         if (name !== "chat") { closeSocket(); stopChatPoll(); }
@@ -239,12 +246,15 @@
         if (name === "clips") loadClips();
         if (name === "aria") loadAriaHistory();
         if (name === "global") { loadGlobal(true); startGlobalPoll(); }
+        if (name === "videos") loadVideos();
     }
 
     function setupTabs() {
-        document.getElementById("tabFeed").addEventListener("click", () => showView("feed"));
-        document.getElementById("tabGlobal").addEventListener("click", () => showView("global"));
-        document.getElementById("tabMenu").addEventListener("click", () => showView("menu"));
+        const map = { tabFeed: "feed", tabGlobal: "global", tabLive: "live", tabVideos: "videos", tabMenu: "menu" };
+        Object.keys(map).forEach(function (id) {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener("click", () => showView(map[id]));
+        });
     }
 
     function setupMenu() {
@@ -586,11 +596,32 @@
             list.innerHTML = '<div class="feed-loading">โหลดโพสต์ไม่สำเร็จ</div>';
             return;
         }
-        if (res.data.posts.length === 0) {
+        // วิดีโอย้ายไปอยู่แท็บ "วิดีโอ" แล้ว ฟีดหลักจึงแสดงเฉพาะข้อความและรูป
+        const feedPosts = res.data.posts.filter(p => p.media_type !== "video");
+        if (feedPosts.length === 0) {
             list.innerHTML = '<div class="feed-loading">ยังไม่มีโพสต์ มาเริ่มเขียนกันเลย!</div>';
             return;
         }
-        res.data.posts.forEach(p => list.appendChild(renderPost(p)));
+        feedPosts.forEach(p => list.appendChild(renderPost(p)));
+    }
+
+    // ---------- แท็บวิดีโอ ----------
+    async function loadVideos() {
+        const list = document.getElementById("videoList");
+        if (!list) return;
+        list.innerHTML = '<div class="feed-loading">กำลังโหลดวิดีโอ...</div>';
+        const res = await api("/api/posts?token=" + encodeURIComponent(token));
+        if (!res.ok || !res.data.posts) {
+            list.innerHTML = '<div class="feed-loading">โหลดวิดีโอไม่สำเร็จ</div>';
+            return;
+        }
+        const videos = res.data.posts.filter(p => p.media_type === "video");
+        list.innerHTML = "";
+        if (videos.length === 0) {
+            list.innerHTML = '<div class="feed-loading">ยังไม่มีใครอัปโหลดวิดีโอ — อัปคลิปแรกได้ที่เมนู "อัปคลิป"</div>';
+            return;
+        }
+        videos.forEach(p => list.appendChild(renderPost(p)));
     }
 
     let pickedFile = null;
@@ -679,12 +710,12 @@
                 const f = fileInput.files[0];
                 fileInput.value = "";
                 if (!f) return;
-                const isVid = f.type.indexOf("video/") === 0;
-                // รูปจะถูกย่ออัตโนมัติก่อนส่ง จึงรับไฟล์ต้นฉบับใหญ่ได้
-                if (isVid && f.size > 20 * 1048576) {
-                    toast("วิดีโอใหญ่เกินไป (จำกัด 20 MB)", true);
+                // โพสต์หลักรับเฉพาะรูปภาพ วิดีโอให้ไปที่เมนู "อัปคลิป"
+                if (f.type.indexOf("image/") !== 0) {
+                    toast("โพสต์หลักแนบได้เฉพาะรูปภาพ — วิดีโออัปได้ที่เมนู \"อัปคลิป\"", true);
                     return;
                 }
+                // รูปจะถูกย่ออัตโนมัติก่อนส่ง จึงรับไฟล์ต้นฉบับใหญ่ได้
                 pickedFile = f;
                 showPreview(preview, f);
             });

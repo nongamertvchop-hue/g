@@ -1080,7 +1080,8 @@ async function createPost(request, env) {
     const content = (b.content || "").trim();
     const title = (b.title || "").trim() || null;
     const mediaKey = (b.media_key || "").trim() || null;
-    const mediaType = (b.media_type || "").trim() || null;
+    // ไม่เชื่อ media_type ที่ส่งมา — อ่านจากชนิดไฟล์จริงเพื่อกันการสวมชนิด
+    const mediaType = mediaKey ? (mediaKey.indexOf("video/") === 0 ? "video" : "image") : null;
     if (!content && !mediaKey) return json({ error: "กรุณากรอกเนื้อหา หรือแนบไฟล์" }, 400);
     if (content.length > 20000) return json({ error: "เนื้อหายาวเกินไป" }, 400);
     const type = title ? "novel" : "text";

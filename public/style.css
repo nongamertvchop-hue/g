@@ -2793,8 +2793,28 @@ img, video, canvas { max-width: 100%; }
     .app-header .header-center { order: 3; flex: 1 1 100%; max-width: none; margin: 0; }
 }
 
-/* ชื่อแท็บต้องไม่ตกบรรทัด */
-.tab-btn { white-space: nowrap; }
+/* ชื่อแท็บต้องไม่ตกบรรทัด และเลื่อนแนวนอนได้เมื่อแท็บเยอะเกินความกว้างจอ */
+.tab-btn { white-space: nowrap; flex: 0 0 auto; }
+
+.tab-bar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+}
+
+.tab-bar::-webkit-scrollbar { display: none; }
+
+/* จอกว้างพอ ให้แท็บเฉลี่ยเต็มแถวเหมือนเดิม */
+@media (min-width: 620px) {
+    .tab-btn { flex: 1 1 0; }
+    .tab-bar { overflow-x: visible; }
+}
+
+@media (max-width: 619px) {
+    .tab-btn { padding: 9px 15px; font-size: 14.5px; }
+}
 
 /* ---------- ไอแพดแนวตั้ง / แท็บเล็ตเล็ก ---------- */
 @media (max-width: 900px) {

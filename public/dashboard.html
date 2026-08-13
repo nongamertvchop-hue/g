@@ -36,6 +36,8 @@
             <div class="tab-bar">
                 <button class="tab-btn active" id="tabFeed">แท็บ</button>
                 <button class="tab-btn" id="tabGlobal">แชทโลก</button>
+                <button class="tab-btn" id="tabLive">LIVE</button>
+                <button class="tab-btn" id="tabVideos">วิดีโอ</button>
                 <button class="tab-btn" id="tabMenu">แท็บแท็บ</button>
             </div>
         </div>
@@ -105,12 +107,12 @@
                     <div class="composer-body">
                         <input type="text" id="postTitle" class="post-title-input" placeholder="ใส่ชื่อเรื่อง/บท ถ้าเป็นนิยาย (เว้นว่าง = โพสต์ธรรมดา)">
                         <textarea id="postContent" placeholder="แบ่งปันเรื่องราว หรือเริ่มเขียนนิยายบทใหม่..."></textarea>
-                        <input type="file" id="postFile" accept="image/*,video/*" hidden>
+                        <input type="file" id="postFile" accept="image/*" hidden>
                         <div id="mediaPreview" class="media-preview" style="display:none"></div>
                         <div id="composerMsg" class="composer-msg"></div>
                         <div class="composer-actions">
                             <div class="composer-tools">
-                                <button class="tool-btn" type="button" id="btnPickMedia" style="display:none">🖼️ รูป/วิดีโอ</button>
+                                <button class="tool-btn" type="button" id="btnPickMedia" style="display:none">🖼️ รูปภาพ</button>
                                 <button class="tool-btn" type="button">📖 บทนิยาย</button>
                                 <button class="tool-btn" type="button">😊 อารมณ์</button>
                             </div>
@@ -140,7 +142,39 @@
                 </div>
             </section>
 
-            <!-- ===== แท็บแท็บ: เมนู 6 ปุ่ม ===== -->
+            <!-- ===== LIVE (กำลังปรับปรุง) ===== -->
+            <section id="view-live" class="view" style="display:none">
+                <h2 class="page-title">LIVE</h2>
+                <div class="clips-placeholder">
+                    <div class="clips-icon">📡</div>
+                    <h3>กำลังปรับปรุง</h3>
+                    <p>ระบบถ่ายทอดสดกำลังอยู่ระหว่างการพัฒนา อีกไม่นานจะเปิดให้ใช้งาน</p>
+                </div>
+            </section>
+
+            <!-- ===== วิดีโอ (คลิปที่ผู้ใช้อัปโหลด) ===== -->
+            <section id="view-videos" class="view" style="display:none">
+                <div class="global-head">
+                    <h2 class="page-title">วิดีโอ</h2>
+                    <span class="global-note">คลิปทั้งหมดที่สมาชิกอัปโหลด · อัปคลิปได้ที่เมนู "อัปคลิป"</span>
+                </div>
+                <div id="videoList" class="post-list">
+                    <div class="feed-loading">กำลังโหลดวิดีโอ...</div>
+                </div>
+            </section>
+
+            <!-- ===== เติมเงิน (กำลังปรับปรุง) ===== -->
+            <section id="view-topup" class="view" style="display:none">
+                <button class="back-btn back-to-menu">← กลับเมนู</button>
+                <h2 class="page-title">เติมเงิน</h2>
+                <div class="clips-placeholder">
+                    <div class="clips-icon">💳</div>
+                    <h3>กำลังปรับปรุง</h3>
+                    <p>ระบบเติมเงินกำลังอยู่ระหว่างการพัฒนา อีกไม่นานจะเปิดให้ใช้งาน</p>
+                </div>
+            </section>
+
+            <!-- ===== แท็บแท็บ: เมนู 7 ปุ่ม ===== -->
             <section id="view-menu" class="view" style="display:none">
                 <div class="menu-grid">
                     <button class="menu-card" data-goto="feed">
@@ -172,6 +206,11 @@
                         <span class="menu-icon">🎬</span>
                         <span class="menu-label">อัปคลิป</span>
                         <span class="menu-desc">อัปโหลดวิดีโอสั้น</span>
+                    </button>
+                    <button class="menu-card" data-goto="topup">
+                        <span class="menu-icon">💳</span>
+                        <span class="menu-label">เติมเงิน</span>
+                        <span class="menu-desc">เติมเหรียญเข้าบัญชี</span>
                     </button>
                 </div>
             </section>
