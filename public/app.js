@@ -8,6 +8,48 @@
         return;
     }
 
+    // ตรวจอุปกรณ์ทันที ไม่ต้องรอโหลดข้อมูล
+    setupResponsive();
+
+    // ---------- ตรวจอุปกรณ์ผู้ใช้ แล้วปรับหน้าเว็บอัตโนมัติ ----------
+    function detectDevice() {
+        const root = document.documentElement;
+        const w = window.innerWidth;
+        const touch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+        const coarse = window.matchMedia("(pointer: coarse)").matches;
+
+        // iPadOS รุ่นใหม่รายงานตัวเองเป็น Mac จึงต้องดูจากจำนวนจุดสัมผัสร่วมด้วย
+        const ua = navigator.userAgent;
+        const iPadLike = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+        const phoneUA = /Android.*Mobile|iPhone|iPod|Windows Phone/i.test(ua);
+
+        let kind;
+        if (phoneUA || (w < 768 && touch)) kind = "phone";
+        else if (iPadLike || (touch && w < 1180)) kind = "tablet";
+        else if (w < 1180) kind = "laptop";
+        else kind = "desktop";
+
+        root.classList.remove("dev-phone", "dev-tablet", "dev-laptop", "dev-desktop");
+        root.classList.add("dev-" + kind);
+        root.classList.toggle("is-touch", touch || coarse);
+        root.classList.toggle("is-landscape", w > window.innerHeight);
+
+        // ให้ 1vh เท่ากับความสูงจริงของช่องมองเห็น (แก้ปัญหาแถบที่อยู่เว็บบนมือถือ)
+        root.style.setProperty("--vh", (window.innerHeight * 0.01) + "px");
+        return kind;
+    }
+
+    function setupResponsive() {
+        detectDevice();
+        let t = null;
+        const rerun = function () {
+            clearTimeout(t);
+            t = setTimeout(detectDevice, 120);
+        };
+        window.addEventListener("resize", rerun);
+        window.addEventListener("orientationchange", rerun);
+    }
+
     // ---------- helpers ----------
     async function api(path, opts) {
         const res = await fetch(path, opts);
@@ -1181,8 +1223,7 @@
     }
 
     // ---------- ระบบครอปรูปโปรไฟล์ ----------
-    const CROP_BOX = 280;    // ขนาดกรอบครอปบนหน้าจอ
-    const CROP_OUT = 400;    // ขนาดรูปที่บันทึกจริง
+    const CROP_OUT = 400;    // ขนาดรูปที่บันทึกจริง (กรอบบนจอวัดจาก CSS เพื่อรองรับทุกอุปกรณ์)
 
     function openCropper(file) {
         const url = URL.createObjectURL(file);
@@ -1230,9 +1271,12 @@
             overlay.appendChild(box);
             document.body.appendChild(overlay);
 
+            // วัดขนาดกรอบจริงจาก CSS (เปลี่ยนตามขนาดหน้าจอ)
+            let CROP_BOX = Math.round(stage.getBoundingClientRect().width) || 280;
+
             // ขนาดฐาน: ย่อ/ขยายให้รูปคลุมกรอบครอปพอดี
             const natW = img.naturalWidth, natH = img.naturalHeight;
-            const baseScale = Math.max(CROP_BOX / natW, CROP_BOX / natH);
+            let baseScale = Math.max(CROP_BOX / natW, CROP_BOX / natH);
             let zoomFactor = 1;
             let offX = 0, offY = 0;   // ตำแหน่งมุมซ้ายบนของรูป เทียบกับกรอบครอป
 
@@ -1246,6 +1290,20 @@
                 if (offX < minX) offX = minX;
                 if (offY < minY) offY = minY;
             }
+
+            // ถ้าหมุนจอหรือเปลี่ยนขนาดหน้าต่าง ให้คำนวณกรอบใหม่โดยคงสัดส่วนเดิม
+            function onResize() {
+                const next = Math.round(stage.getBoundingClientRect().width);
+                if (!next || next === CROP_BOX) return;
+                const ratio = next / CROP_BOX;
+                CROP_BOX = next;
+                baseScale = Math.max(CROP_BOX / natW, CROP_BOX / natH);
+                offX *= ratio;
+                offY *= ratio;
+                paint();
+            }
+            window.addEventListener("resize", onResize);
+            window.addEventListener("orientationchange", onResize);
 
             function paint() {
                 clamp();
@@ -1305,6 +1363,8 @@
             function cleanup() {
                 window.removeEventListener("mousemove", move);
                 window.removeEventListener("mouseup", up);
+                window.removeEventListener("resize", onResize);
+                window.removeEventListener("orientationchange", onResize);
                 URL.revokeObjectURL(url);
                 overlay.remove();
             }

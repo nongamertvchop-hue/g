@@ -1,5 +1,33 @@
 // เรือนอักษร — สคริปต์หน้าเข้าสู่ระบบ / สมัครสมาชิก (เชื่อมกับ API หลังบ้าน D1)
 
+// ตรวจอุปกรณ์ผู้ใช้แล้วติดป้ายไว้ที่หน้าเว็บ เพื่อให้ CSS ปรับตัวได้
+(function () {
+    function detect() {
+        const root = document.documentElement;
+        const w = window.innerWidth;
+        const touch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+        const ua = navigator.userAgent;
+        const iPadLike = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+        const phoneUA = /Android.*Mobile|iPhone|iPod|Windows Phone/i.test(ua);
+
+        let kind;
+        if (phoneUA || (w < 768 && touch)) kind = "phone";
+        else if (iPadLike || (touch && w < 1180)) kind = "tablet";
+        else if (w < 1180) kind = "laptop";
+        else kind = "desktop";
+
+        root.classList.remove("dev-phone", "dev-tablet", "dev-laptop", "dev-desktop");
+        root.classList.add("dev-" + kind);
+        root.classList.toggle("is-touch", touch);
+        root.style.setProperty("--vh", (window.innerHeight * 0.01) + "px");
+    }
+    detect();
+    let t = null;
+    const rerun = function () { clearTimeout(t); t = setTimeout(detect, 120); };
+    window.addEventListener("resize", rerun);
+    window.addEventListener("orientationchange", rerun);
+})();
+
 // เปิด/ปิดการมองเห็นรหัสผ่าน (รองรับหลายช่องในหน้าเดียว)
 function setupPasswordToggles() {
     document.querySelectorAll(".toggle-password").forEach(function (btn) {

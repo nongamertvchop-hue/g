@@ -2744,6 +2744,142 @@ body::after {
     .menu-grid { grid-template-columns: 1fr; }
 }
 
+/* ============================================================
+   รองรับทุกอุปกรณ์อัตโนมัติ (คอม โน้ตบุ๊ก แท็บเล็ต ไอแพด มือถือ)
+   บล็อกนี้อยู่ท้ายไฟล์ จึงมีผลเหนือกฎด้านบน
+   ============================================================ */
+
+/* กันเนื้อหาล้นขอบจอในทุกกรณี */
+html, body { max-width: 100%; overflow-x: hidden; }
+img, video, canvas { max-width: 100%; }
+.post-text, .comment-text, .gm-text, .aria-bubble, .chat-msg,
+.novel-detail-synopsis, .chapter-read-content p { overflow-wrap: anywhere; }
+
+/* เผื่อขอบจอมือถือที่มีรอยบาก */
+.app-header { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.app-layout { padding-bottom: max(26px, env(safe-area-inset-bottom)); }
+.copyright { padding-bottom: max(28px, env(safe-area-inset-bottom)); }
+
+/* กล่องลอยต้องไม่กว้างเกินจอ */
+.notif-panel { width: min(340px, calc(100vw - 24px)); }
+.my-panel { width: min(310px, calc(100vw - 24px)); }
+.modal-box { max-width: min(400px, calc(100vw - 32px)); }
+.cropper-box { max-width: min(340px, calc(100vw - 24px)); }
+
+/* กรอบครอปยืดตามจอ (สคริปต์วัดขนาดจริงเอง จึงไม่เพี้ยน) */
+.crop-stage { width: min(280px, calc(100vw - 90px)); height: min(280px, calc(100vw - 90px)); }
+.crop-ring {
+    -webkit-mask: radial-gradient(circle at center, transparent 0 49%, #000 49.4%);
+    mask: radial-gradient(circle at center, transparent 0 49%, #000 49.4%);
+}
+.crop-ring::after { width: 98%; height: 98%; }
+
+/* ---------- โน้ตบุ๊กจอเล็ก / แท็บเล็ตแนวนอน ---------- */
+@media (max-width: 1180px) {
+    .app-layout { grid-template-columns: 210px minmax(0, 1fr) 260px; gap: 18px; padding: 22px 18px; }
+}
+
+/* ---------- แท็บเล็ต / ไอแพด ---------- */
+@media (max-width: 1024px) {
+    .app-layout { grid-template-columns: 200px minmax(0, 1fr); }
+    .sidebar-right { display: none; }
+    .header-center { max-width: 440px; }
+}
+
+/* ---------- ไอแพดแนวตั้ง / แท็บเล็ตเล็ก ---------- */
+@media (max-width: 900px) {
+    .menu-grid { grid-template-columns: repeat(2, 1fr); }
+    .chat-layout { grid-template-columns: 1fr; }
+    .novel-detail-head { flex-direction: column; }
+    .aria-messages { max-height: 42vh; }
+    .global-window { max-height: 46vh; }
+}
+
+/* ---------- มือถือ / แท็บเล็ตจอแคบ ---------- */
+@media (max-width: 767px) {
+    .app-header { flex-wrap: wrap; gap: 10px; padding-top: 10px; padding-bottom: 10px; }
+    .app-header .header-center { order: 3; flex: 1 1 100%; max-width: none; margin: 0; }
+    .app-layout { grid-template-columns: minmax(0, 1fr); padding: 16px 14px; gap: 16px; }
+    .sidebar-left { display: none; }
+
+    .brand-name { font-size: 22px; }
+    .brand-emblem { width: 28px; height: 28px; }
+    .aria-launch { margin-left: 6px; padding: 5px 11px 5px 8px; font-size: 13px; }
+    .app-header .btn-logout { padding: 7px 13px; font-size: 13px; }
+    .avatar { width: 36px; height: 36px; font-size: 16px; }
+
+    .tab-btn { font-size: 15px; padding: 9px 6px; }
+    .page-title { font-size: 24px; }
+
+    .composer { padding: 14px; gap: 10px; }
+    .post-card { padding: 14px; }
+    .post-footer { gap: 2px; }
+    .react-btn { padding: 7px 9px; font-size: 12.5px; }
+
+    /* ใช้ความสูงจริงของจอ กันแถบที่อยู่เว็บบนมือถือบังเนื้อหา */
+    .aria-stage { min-height: calc(var(--vh, 1vh) * 78); }
+    .aria-messages { max-height: calc(var(--vh, 1vh) * 40); }
+    .aria-tools { width: 100%; justify-content: flex-start; }
+
+    .novel-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+    .novel-card-cover { height: 150px; }
+    .clip-grid { grid-template-columns: 1fr; }
+
+    .profile-card { flex-direction: column; text-align: center; }
+    .profile-meta, .profile-stats { justify-content: center; }
+    .alias-edit { justify-content: center; }
+    .alias-edit input { min-width: 0; flex: 1; }
+}
+
+/* ---------- มือถือจอเล็ก ---------- */
+@media (max-width: 480px) {
+    .menu-grid { grid-template-columns: 1fr; }
+    .menu-card { flex-direction: row; text-align: left; gap: 14px; padding: 16px; align-items: center; }
+    .menu-icon { font-size: 28px; }
+    .menu-label { font-size: 18px; }
+    .menu-desc { font-size: 11.5px; }
+
+    .login-box { padding: 30px 20px 24px; }
+    .login-header h1 { font-size: 32px; }
+    .brand-name { font-size: 19px; }
+
+    .global-input button, .chat-input button { padding: 0 16px; font-size: 15px; }
+    .gm-bubble, .aria-bubble { max-width: 86%; }
+    .novel-detail-title { font-size: 26px; }
+    .welcome-card, .write-card, .global-card { padding: 16px; }
+    .composer-tools { width: 100%; }
+    .composer-actions { gap: 8px; }
+    .btn-post { padding: 9px 20px; }
+}
+
+/* ---------- มือถือแนวนอน (จอเตี้ย) ---------- */
+@media (max-height: 500px) and (orientation: landscape) {
+    .aria-stage { min-height: 100vh; }
+    .aria-messages, .global-window, .chat-conv .chat-window { max-height: 38vh; }
+    .crop-stage { width: min(220px, 42vh); height: min(220px, 42vh); }
+}
+
+/* ---------- อุปกรณ์สัมผัส: ปุ่มต้องกดง่าย ---------- */
+.is-touch .icon-btn,
+.is-touch .tab-btn,
+.is-touch .tool-btn,
+.is-touch .react-btn,
+.is-touch .notif-action,
+.is-touch .aria-tool,
+.is-touch .aria-item-btn { min-height: 40px; }
+
+.is-touch .avatar { -webkit-tap-highlight-color: transparent; }
+.is-touch .global-input input,
+.is-touch .chat-input input,
+.is-touch .comment-input,
+.is-touch .aria-input textarea { font-size: 16px; }   /* กัน iOS ซูมเองตอนพิมพ์ */
+
+/* บนอุปกรณ์สัมผัสไม่ต้องมีเอฟเฟกต์ hover ที่ค้าง */
+@media (hover: none) {
+    .menu-card:hover, .novel-card:hover, #myAvatar:hover, #pfAvatar:hover,
+    .gm-avatar:hover, .aria-launch:hover { transform: none; }
+}
+
 /* ปิดอนิเมชันให้คนที่แพ้การเคลื่อนไหว */
 @media (prefers-reduced-motion: reduce) {
     *,
