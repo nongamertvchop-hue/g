@@ -64,6 +64,7 @@ async function handleApi(request, env, url) {
     if (p === "/api/logout" && m === "POST") return logout(request, env);
     if (p === "/api/me" && m === "GET") return me(request, env, url);
     if (p === "/api/alias" && m === "POST") return changeAlias(request, env);
+    if (p === "/api/avatar" && m === "POST") return setAvatar(request, env);
     if (p === "/api/profile" && m === "GET") return publicProfile(env, url);
     if (p === "/api/mystats" && m === "GET") return myStats(env, url);
     if (p === "/api/heartbeat" && m === "POST") return heartbeat(request, env);
@@ -556,6 +557,50 @@ async function aliasMap(env, names) {
     return map;
 }
 
+// นามแฝง + รูปโปรไฟล์ ในครั้งเดียว
+async function identityMap(env, names) {
+    const uniq = [...new Set((names || []).filter(Boolean))];
+    const map = {};
+    if (!uniq.length) return map;
+    const marks = uniq.map(() => "?").join(",");
+    const { results } = await env.DB.prepare(
+        "SELECT username, alias, avatar_key FROM users WHERE username IN (" + marks + ")"
+    ).bind(...uniq).all();
+    (results || []).forEach((r) => {
+        map[r.username] = { alias: r.alias || r.username, avatar: r.avatar_key || null };
+    });
+    uniq.forEach((u) => { if (!map[u]) map[u] = { alias: u, avatar: null }; });
+    return map;
+}
+
+// ตั้ง/ลบรูปโปรไฟล์
+async function setAvatar(request, env) {
+    const b = await readJson(request);
+    const username = await userFromToken(env, b.token || "");
+    if (!username) return json({ error: "กรุณาเข้าสู่ระบบ" }, 401);
+
+    const key = b.media_key === null || b.media_key === "" ? null : String(b.media_key || "").trim();
+    if (key && key.indexOf("image/") !== 0)
+        return json({ error: "รองรับเฉพาะไฟล์รูปภาพ" }, 400);
+
+    // ตรวจว่าไฟล์มีอยู่จริงก่อนบันทึก
+    if (key && env.MEDIA) {
+        const obj = await env.MEDIA.get(key, { type: "arrayBuffer" });
+        if (!obj) return json({ error: "ไม่พบไฟล์รูปที่อัปโหลด" }, 404);
+    }
+
+    // ลบรูปเก่าทิ้ง ไม่ให้เปลืองพื้นที่
+    const old = await env.DB.prepare("SELECT avatar_key FROM users WHERE username = ?")
+        .bind(username).first();
+    if (old && old.avatar_key && old.avatar_key !== key && env.MEDIA) {
+        try { await env.MEDIA.delete(old.avatar_key); } catch (e) { /* ignore */ }
+    }
+
+    await env.DB.prepare("UPDATE users SET avatar_key = ? WHERE username = ?")
+        .bind(key, username).run();
+    return json({ ok: true, avatar: key });
+}
+
 async function usernameFromAlias(env, alias) {
     const row = await env.DB.prepare("SELECT username FROM users WHERE alias = ?").bind(alias).first();
     return row ? row.username : null;
@@ -571,7 +616,7 @@ async function myStats(env, url) {
     if (!username) return json({ error: "unauthorized" }, 401);
 
     const u = await env.DB.prepare(
-        "SELECT alias, role, coins, read_seconds, site_seconds, last_seen, created_at FROM users WHERE username = ?"
+        "SELECT alias, role, coins, read_seconds, site_seconds, last_seen, created_at, avatar_key FROM users WHERE username = ?"
     ).bind(username).first();
     if (!u) return json({ error: "ไม่พบผู้ใช้" }, 404);
 
@@ -583,6 +628,7 @@ async function myStats(env, url) {
         ok: true,
         stats: {
             alias: u.alias,
+            avatar: u.avatar_key || null,
             role: u.role,
             online: true,                       // กำลังเรียกอยู่ = ออนไลน์
             coins: u.coins || 0,
@@ -682,11 +728,12 @@ async function listGlobal(env, url) {
         rows = (r.results || []).reverse();
     }
 
-    const map = await aliasMap(env, rows.map((m) => m.username));
+    const map = await identityMap(env, rows.map((m) => m.username));
     const isAdminViewer = await isAdmin(env, viewer);
     const messages = rows.map((m) => ({
         id: m.id,
-        alias: map[m.username] || m.username,
+        alias: (map[m.username] && map[m.username].alias) || m.username,
+        avatar: (map[m.username] && map[m.username].avatar) || null,
         mine: m.username === viewer,
         content: m.content,
         created_at: m.created_at,
@@ -746,7 +793,7 @@ async function publicProfile(env, url) {
     if (!alias) return json({ error: "ไม่พบนามแฝง" }, 400);
 
     const row = await env.DB.prepare(
-        "SELECT id, username, alias, role, created_at, coins, last_seen FROM users WHERE alias = ?"
+        "SELECT id, username, alias, role, created_at, coins, last_seen, avatar_key FROM users WHERE alias = ?"
     ).bind(alias).first();
     if (!row) return json({ error: "ไม่พบผู้ใช้นี้" }, 404);
 
@@ -764,6 +811,7 @@ async function publicProfile(env, url) {
         ok: true,
         profile: {
             alias: row.alias,
+            avatar: row.avatar_key || null,
             role: row.role,
             online,
             coins: row.coins || 0,
@@ -928,11 +976,12 @@ async function me(request, env, url) {
 }
 
 async function userInfo(env, username) {
-    const row = await env.DB.prepare("SELECT id, email, created_at, role, alias FROM users WHERE username = ?")
+    const row = await env.DB.prepare("SELECT id, email, created_at, role, alias, avatar_key FROM users WHERE username = ?")
         .bind(username).first();
     return {
         username,                       // เห็นได้เฉพาะเจ้าของบัญชีเอง
         alias: row ? row.alias : null,  // ชื่อที่คนอื่นเห็น
+        avatar: row ? row.avatar_key : null,
         id: row ? row.id : null,
         email: row ? row.email : null,
         created_at: row ? row.created_at : null,
@@ -964,13 +1013,15 @@ async function userFromToken(env, token) {
 // เก็บ author_key ไว้ให้หน้าเว็บใช้ตรวจสิทธิ์ (เทียบกับตัวเอง) โดยไม่เปิดเผยชื่อคนอื่น
 async function maskAuthors(env, rows, field, viewer) {
     const list = rows || [];
-    const map = await aliasMap(env, list.map((r) => r[field]));
+    const map = await identityMap(env, list.map((r) => r[field]));
     const viewerIsAdmin = viewer ? await isAdmin(env, viewer) : false;
     list.forEach((r) => {
         const real = r[field];
+        const id = map[real] || { alias: real, avatar: null };
         r.is_mine = real === viewer;
         if (viewerIsAdmin) r.real_username = real;
-        r[field] = map[real] || real;
+        r[field] = id.alias;
+        r.author_avatar = id.avatar;
     });
     return list;
 }

@@ -1414,6 +1414,124 @@ body::after {
 .react-btn.manage.danger:hover { background: rgba(126,31,43,0.15); }
 .composer-msg.ok { color: #7fc98a; }
 
+/* ===== รูปโปรไฟล์ (รูปจริง) ===== */
+.avatar.has-photo {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: transparent;
+}
+
+#pfAvatar { transition: transform 0.2s, box-shadow 0.2s; }
+#pfAvatar:hover { transform: scale(1.05); box-shadow: 0 0 22px -4px rgba(201, 162, 75, 0.8); }
+
+/* เมนูตัวเลือกรูปโปรไฟล์ */
+.avatar-menu { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.avatar-menu-preview { width: 96px; height: 96px; font-size: 40px; }
+.avatar-menu-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+
+.avatar-menu-item {
+    width: 100%;
+    text-align: left;
+    background: rgba(10, 10, 15, 0.5);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 12px 16px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14.5px;
+    cursor: pointer;
+    transition: all 0.22s;
+}
+
+.avatar-menu-item:hover { border-color: var(--gold-deep); background: rgba(201, 162, 75, 0.1); }
+.avatar-menu-item.danger { color: #d97b7b; }
+.avatar-menu-item.danger:hover { border-color: var(--blood); background: rgba(126, 31, 43, 0.16); }
+
+/* ตัวครอปรูป */
+.cropper-box { max-width: 340px; }
+.cropper-title { font-family: var(--font-serif); font-size: 22px; color: var(--gold); text-align: center; }
+.cropper-hint { font-size: 12px; color: var(--ink-faint); text-align: center; margin-bottom: 14px; line-height: 1.6; }
+
+.crop-stage {
+    position: relative;
+    width: 280px;
+    height: 280px;
+    margin: 0 auto;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #06050a;
+    border: 1px solid var(--line);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.crop-stage.dragging { cursor: grabbing; }
+
+.crop-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    max-width: none;
+    pointer-events: none;
+}
+
+/* วงกลมบอกขอบเขตที่จะถูกครอป */
+.crop-ring {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 2000px rgba(6, 5, 10, 0.55);
+    -webkit-mask: radial-gradient(circle at center, transparent 0 138px, #000 139px);
+    mask: radial-gradient(circle at center, transparent 0 138px, #000 139px);
+}
+
+.crop-ring::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 276px;
+    height: 276px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 2px solid rgba(240, 217, 160, 0.85);
+}
+
+.crop-zoom { display: flex; align-items: center; gap: 10px; margin: 16px 0 6px; }
+
+.crop-zoom input[type="range"] {
+    flex: 1;
+    accent-color: var(--gold);
+    height: 4px;
+    cursor: pointer;
+}
+
+.modal-btn.primary {
+    background: linear-gradient(135deg, var(--gold-soft), var(--gold-deep));
+    border-color: transparent;
+    color: #1a1408;
+}
+
+.modal-btn.primary:hover { background: linear-gradient(135deg, #e3c477, var(--gold)); }
+.modal-btn:disabled { opacity: 0.55; cursor: default; }
+
+/* ดูรูปเต็ม */
+.image-viewer { flex-direction: column; gap: 14px; cursor: zoom-out; }
+
+.viewer-img {
+    max-width: min(90vw, 560px);
+    max-height: 75vh;
+    border-radius: 16px;
+    border: 1px solid rgba(201, 162, 75, 0.35);
+    box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.9);
+}
+
+.viewer-hint { color: var(--ink-faint); font-size: 12.5px; }
+
 /* ===== หน้าต่างโปรไฟล์ลอย (กดที่รูปโปรไฟล์) ===== */
 .me-wrap { position: relative; }
 

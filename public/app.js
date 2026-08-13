@@ -84,7 +84,34 @@
     }
 
     function initial(name) {
-        return (name || "?").charAt(0).toUpperCase();
+        return (name || "?").replace("#", "").charAt(0).toUpperCase();
+    }
+
+    // สร้างวงกลมโปรไฟล์: ถ้ามีรูปให้แสดงรูป ถ้าไม่มีให้แสดงตัวอักษรแรก
+    function avatarEl(alias, avatarKey, extraClass, tag) {
+        const node = document.createElement(tag || "div");
+        node.className = "avatar" + (extraClass ? " " + extraClass : "");
+        if (avatarKey) {
+            node.classList.add("has-photo");
+            node.style.backgroundImage = 'url("/media/' + avatarKey + '")';
+            node.textContent = "";
+        } else {
+            node.textContent = initial(alias);
+        }
+        return node;
+    }
+
+    function paintAvatar(node, alias, avatarKey) {
+        if (!node) return;
+        if (avatarKey) {
+            node.classList.add("has-photo");
+            node.style.backgroundImage = 'url("/media/' + avatarKey + '")';
+            node.textContent = "";
+        } else {
+            node.classList.remove("has-photo");
+            node.style.backgroundImage = "";
+            node.textContent = initial(alias);
+        }
     }
 
     // ---------- boot ----------
@@ -100,14 +127,15 @@
         if (meRes.ok && meRes.data.ok) {
             me.username = meRes.data.username;
             me.alias = meRes.data.alias;
+            me.avatar = meRes.data.avatar;
             me.id = meRes.data.id;
             me.role = meRes.data.role;
         }
 
-        const ch = initial((me.alias || me.username).replace("#", ""));
-        document.getElementById("myAvatar").textContent = ch;
+        const ch = initial(me.alias || me.username);
+        paintAvatar(document.getElementById("myAvatar"), me.alias, me.avatar);
         document.getElementById("myAvatar").title = me.alias || "";
-        document.getElementById("composerAvatar").textContent = ch;
+        paintAvatar(document.getElementById("composerAvatar"), me.alias, me.avatar);
 
         document.getElementById("logoutBtn").addEventListener("click", async function (e) {
             e.preventDefault();
@@ -131,6 +159,7 @@
         setupNotifications();
         setupGlobal();
         setupMyPanel();
+        setupAvatarUpload();
         startHeartbeat();
         setupWrite();
         setupChatControls();
@@ -206,7 +235,7 @@
         card.dataset.id = post.id;
 
         const head = el("div", "post-head");
-        const av = el("div", "avatar", initial(post.author));
+        const av = avatarEl(post.author, post.author_avatar, null);
         const meta = el("div", "post-meta");
         meta.appendChild(el("span", "post-author", post.author));
         meta.appendChild(el("span", "post-time", (post.type === "novel" ? "ลงบทใหม่ · " : "") + timeAgo(post.created_at)));
@@ -416,7 +445,7 @@
 
         function addRow(c) {
             const row = el("div", "comment-row");
-            row.appendChild(el("div", "avatar sm", initial(c.author)));
+            row.appendChild(avatarEl(c.author, c.author_avatar, "sm"));
             const bodyWrap = el("div", "comment-body");
             const head = el("div", "comment-head");
             head.appendChild(el("span", "comment-author", c.author));
@@ -1151,6 +1180,283 @@
         if (chatPoll) { clearInterval(chatPoll); chatPoll = null; }
     }
 
+    // ---------- ระบบครอปรูปโปรไฟล์ ----------
+    const CROP_BOX = 280;    // ขนาดกรอบครอปบนหน้าจอ
+    const CROP_OUT = 400;    // ขนาดรูปที่บันทึกจริง
+
+    function openCropper(file) {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+
+        img.onerror = function () {
+            URL.revokeObjectURL(url);
+            toast("เปิดไฟล์รูปไม่ได้ ลองไฟล์อื่นนะ", true);
+        };
+
+        img.onload = function () {
+            const overlay = el("div", "modal-overlay");
+            const box = el("div", "modal-box cropper-box");
+            box.appendChild(el("p", "cropper-title", "ปรับขนาดและตำแหน่งรูป"));
+            box.appendChild(el("p", "cropper-hint", "ลากรูปเพื่อเลื่อน · ใช้แถบเลื่อนหรือหมุนล้อเมาส์เพื่อย่อ-ขยาย"));
+
+            const stage = el("div", "crop-stage");
+            const canvasImg = document.createElement("img");
+            canvasImg.className = "crop-img";
+            canvasImg.src = url;
+            canvasImg.draggable = false;
+            stage.appendChild(canvasImg);
+            stage.appendChild(el("div", "crop-ring"));
+            box.appendChild(stage);
+
+            const zoomRow = el("div", "crop-zoom");
+            zoomRow.appendChild(el("span", null, "🔍"));
+            const zoom = document.createElement("input");
+            zoom.type = "range";
+            zoom.min = "100";
+            zoom.max = "400";
+            zoom.value = "100";
+            zoomRow.appendChild(zoom);
+            box.appendChild(zoomRow);
+
+            const msg = el("div", "composer-msg");
+            box.appendChild(msg);
+
+            const actions = el("div", "modal-actions");
+            const cancel = el("button", "modal-btn", "ยกเลิก");
+            const save = el("button", "modal-btn primary", "บันทึกรูป");
+            actions.appendChild(cancel);
+            actions.appendChild(save);
+            box.appendChild(actions);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+
+            // ขนาดฐาน: ย่อ/ขยายให้รูปคลุมกรอบครอปพอดี
+            const natW = img.naturalWidth, natH = img.naturalHeight;
+            const baseScale = Math.max(CROP_BOX / natW, CROP_BOX / natH);
+            let zoomFactor = 1;
+            let offX = 0, offY = 0;   // ตำแหน่งมุมซ้ายบนของรูป เทียบกับกรอบครอป
+
+            function scale() { return baseScale * zoomFactor; }
+
+            function clamp() {
+                const w = natW * scale(), h = natH * scale();
+                const minX = CROP_BOX - w, minY = CROP_BOX - h;
+                if (offX > 0) offX = 0;
+                if (offY > 0) offY = 0;
+                if (offX < minX) offX = minX;
+                if (offY < minY) offY = minY;
+            }
+
+            function paint() {
+                clamp();
+                canvasImg.style.width = (natW * scale()) + "px";
+                canvasImg.style.height = (natH * scale()) + "px";
+                canvasImg.style.transform = "translate(" + offX + "px," + offY + "px)";
+            }
+
+            // จัดกึ่งกลางตอนเริ่ม
+            offX = (CROP_BOX - natW * scale()) / 2;
+            offY = (CROP_BOX - natH * scale()) / 2;
+            paint();
+
+            zoom.addEventListener("input", function () {
+                const prev = scale();
+                zoomFactor = Number(zoom.value) / 100;
+                // ซูมโดยยึดจุดกึ่งกลางกรอบไว้
+                const ratio = scale() / prev;
+                offX = CROP_BOX / 2 - (CROP_BOX / 2 - offX) * ratio;
+                offY = CROP_BOX / 2 - (CROP_BOX / 2 - offY) * ratio;
+                paint();
+            });
+
+            stage.addEventListener("wheel", function (e) {
+                e.preventDefault();
+                const step = e.deltaY < 0 ? 10 : -10;
+                zoom.value = String(Math.min(400, Math.max(100, Number(zoom.value) + step)));
+                zoom.dispatchEvent(new Event("input"));
+            }, { passive: false });
+
+            // ลากเลื่อน (รองรับทั้งเมาส์และนิ้ว)
+            let dragging = false, startX = 0, startY = 0, startOffX = 0, startOffY = 0;
+            function down(e) {
+                dragging = true;
+                const p = e.touches ? e.touches[0] : e;
+                startX = p.clientX; startY = p.clientY;
+                startOffX = offX; startOffY = offY;
+                stage.classList.add("dragging");
+            }
+            function move(e) {
+                if (!dragging) return;
+                const p = e.touches ? e.touches[0] : e;
+                offX = startOffX + (p.clientX - startX);
+                offY = startOffY + (p.clientY - startY);
+                paint();
+                if (e.cancelable) e.preventDefault();
+            }
+            function up() { dragging = false; stage.classList.remove("dragging"); }
+
+            stage.addEventListener("mousedown", down);
+            window.addEventListener("mousemove", move);
+            window.addEventListener("mouseup", up);
+            stage.addEventListener("touchstart", down, { passive: true });
+            stage.addEventListener("touchmove", move, { passive: false });
+            stage.addEventListener("touchend", up);
+
+            function cleanup() {
+                window.removeEventListener("mousemove", move);
+                window.removeEventListener("mouseup", up);
+                URL.revokeObjectURL(url);
+                overlay.remove();
+            }
+
+            cancel.addEventListener("click", cleanup);
+            overlay.addEventListener("click", (e) => { if (e.target === overlay) cleanup(); });
+
+            save.addEventListener("click", async function () {
+                save.disabled = true;
+                cancel.disabled = true;
+                msg.className = "composer-msg";
+                msg.textContent = "กำลังบันทึก...";
+
+                try {
+                    // แปลงพิกัดบนจอกลับไปเป็นพิกัดในรูปต้นฉบับ
+                    const s = scale();
+                    const srcX = -offX / s;
+                    const srcY = -offY / s;
+                    const srcSize = CROP_BOX / s;
+
+                    const canvas = document.createElement("canvas");
+                    canvas.width = CROP_OUT;
+                    canvas.height = CROP_OUT;
+                    const ctx = canvas.getContext("2d");
+                    ctx.imageSmoothingQuality = "high";
+                    ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, CROP_OUT, CROP_OUT);
+
+                    const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+                    if (!blob) throw new Error("แปลงรูปไม่สำเร็จ");
+
+                    const fd = new FormData();
+                    fd.append("token", token);
+                    fd.append("file", new File([blob], "avatar.jpg", { type: "image/jpeg" }));
+                    const upRes = await fetch("/api/media/upload", { method: "POST", body: fd });
+                    const up = await upRes.json();
+                    if (!upRes.ok || !up.ok) throw new Error(up.error || "อัปโหลดไม่สำเร็จ");
+
+                    const setRes = await api("/api/avatar", {
+                        method: "POST", headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ token, media_key: up.key }),
+                    });
+                    if (!setRes.ok || !setRes.data.ok) throw new Error(setRes.data.error || "บันทึกรูปไม่สำเร็จ");
+
+                    me.avatar = up.key;
+                    paintAvatar(document.getElementById("myAvatar"), me.alias, me.avatar);
+                    paintAvatar(document.getElementById("composerAvatar"), me.alias, me.avatar);
+                    paintAvatar(document.getElementById("pfAvatar"), me.alias, me.avatar);
+                    cleanup();
+                    toast("เปลี่ยนรูปโปรไฟล์แล้ว");
+                } catch (err) {
+                    msg.textContent = String(err.message || err);
+                    save.disabled = false;
+                    cancel.disabled = false;
+                }
+            });
+        };
+
+        img.src = url;
+    }
+
+    // หน้าต่างตัวเลือกเมื่อกดรูปโปรไฟล์ในหน้าโปรไฟล์
+    function openAvatarMenu() {
+        const overlay = el("div", "modal-overlay");
+        const box = el("div", "modal-box avatar-menu");
+        box.appendChild(el("p", "cropper-title", "รูปโปรไฟล์"));
+
+        const preview = avatarEl(me.alias, me.avatar, "avatar-menu-preview");
+        box.appendChild(preview);
+
+        const list = el("div", "avatar-menu-list");
+
+        const viewBtn = el("button", "avatar-menu-item", "🖼️  ดูรูปภาพ");
+        viewBtn.addEventListener("click", function () {
+            overlay.remove();
+            if (me.avatar) openImageViewer("/media/" + me.avatar);
+            else toast("ยังไม่มีรูปโปรไฟล์ ลองอัปโหลดดูสิ");
+        });
+        list.appendChild(viewBtn);
+
+        const editBtn = el("button", "avatar-menu-item", "✏️  แก้ไขรูปภาพ");
+        editBtn.addEventListener("click", function () {
+            overlay.remove();
+            const picker = document.getElementById("avatarFile");
+            picker.click();
+        });
+        list.appendChild(editBtn);
+
+        if (me.avatar) {
+            const delBtn = el("button", "avatar-menu-item danger", "🗑️  ลบรูปภาพ");
+            delBtn.addEventListener("click", async function () {
+                overlay.remove();
+                const yes = await confirmDialog("ลบรูปโปรไฟล์ออกหรือไม่?", "ลบรูป");
+                if (!yes) return;
+                const r = await api("/api/avatar", {
+                    method: "POST", headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ token, media_key: null }),
+                });
+                if (r.ok && r.data.ok) {
+                    me.avatar = null;
+                    paintAvatar(document.getElementById("myAvatar"), me.alias, null);
+                    paintAvatar(document.getElementById("composerAvatar"), me.alias, null);
+                    paintAvatar(document.getElementById("pfAvatar"), me.alias, null);
+                    toast("ลบรูปโปรไฟล์แล้ว");
+                } else toast(r.data.error || "ลบไม่สำเร็จ", true);
+            });
+            list.appendChild(delBtn);
+        }
+
+        box.appendChild(list);
+        const actions = el("div", "modal-actions");
+        const close = el("button", "modal-btn", "ปิด");
+        close.addEventListener("click", () => overlay.remove());
+        actions.appendChild(close);
+        box.appendChild(actions);
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    function openImageViewer(src) {
+        const overlay = el("div", "modal-overlay image-viewer");
+        const img = document.createElement("img");
+        img.className = "viewer-img";
+        img.src = src;
+        img.alt = "รูปโปรไฟล์";
+        overlay.appendChild(img);
+        const hint = el("div", "viewer-hint", "กดที่ใดก็ได้เพื่อปิด");
+        overlay.appendChild(hint);
+        document.body.appendChild(overlay);
+        overlay.addEventListener("click", () => overlay.remove());
+    }
+
+    function setupAvatarUpload() {
+        const picker = document.getElementById("avatarFile");
+        const pfAvatar = document.getElementById("pfAvatar");
+        if (!picker || !pfAvatar) return;
+
+        pfAvatar.style.cursor = "pointer";
+        pfAvatar.title = "กดเพื่อดูหรือแก้ไขรูปโปรไฟล์";
+        pfAvatar.addEventListener("click", openAvatarMenu);
+
+        picker.addEventListener("change", function () {
+            const f = picker.files[0];
+            picker.value = "";
+            if (!f) return;
+            if (f.type.indexOf("image/") !== 0) { toast("กรุณาเลือกไฟล์รูปภาพ", true); return; }
+            if (f.size > 15 * 1048576) { toast("ไฟล์ใหญ่เกินไป (จำกัด 15 MB)", true); return; }
+            openCropper(f);
+        });
+    }
+
     // ---------- หน้าต่างโปรไฟล์ลอย (กดที่รูปโปรไฟล์) ----------
     function fmtDuration(sec) {
         const s = Math.max(0, Math.floor(sec || 0));
@@ -1200,7 +1506,7 @@
         body.innerHTML = "";
 
         const head = el("div", "mp-head");
-        head.appendChild(el("div", "avatar mp-avatar", initial((s.alias || "?").replace("#", ""))));
+        head.appendChild(avatarEl(s.alias, s.avatar, "mp-avatar"));
         const idBox = el("div", "mp-id");
         idBox.appendChild(el("span", "mp-alias", s.alias));
         const status = el("span", "mp-status" + (s.online ? " online" : ""));
@@ -1269,7 +1575,7 @@
         const row = el("div", "gm-row" + (m.mine ? " mine" : ""));
         // คนส่งจะไม่เห็นโปรไฟล์ของตัวเอง แต่เห็นของคนอื่นและกดดูได้
         if (!m.mine) {
-            const av = el("button", "avatar sm gm-avatar", (m.alias || "?").replace("#", "").charAt(0).toUpperCase());
+            const av = avatarEl(m.alias, m.avatar, "sm gm-avatar", "button");
             av.title = "ดูโปรไฟล์ " + m.alias;
             av.addEventListener("click", () => openProfileCard(m.alias));
             row.appendChild(av);
@@ -1359,8 +1665,18 @@
 
         const overlay = el("div", "modal-overlay");
         const box = el("div", "modal-box profile-card-modal");
-        box.appendChild(el("div", "avatar profile-avatar", (p.alias || "?").replace("#", "").charAt(0).toUpperCase()));
+        const pav = avatarEl(p.alias, p.avatar, "profile-avatar");
+        if (p.avatar) {
+            pav.style.cursor = "zoom-in";
+            pav.title = "ดูรูปเต็ม";
+            pav.addEventListener("click", () => openImageViewer("/media/" + p.avatar));
+        }
+        box.appendChild(pav);
         box.appendChild(el("h3", "profile-name", p.alias));
+        const st = el("span", "mp-status" + (p.online ? " online" : ""));
+        st.appendChild(el("span", "mp-dot"));
+        st.appendChild(document.createTextNode(p.online ? "ออนไลน์" : "ออฟไลน์"));
+        box.appendChild(st);
         if (p.role === "admin") box.appendChild(el("span", "profile-badge", "ผู้ดูแลระบบ"));
         const stats = el("div", "profile-stats");
         [["โพสต์", p.posts], ["นิยาย", p.novels], ["หัวใจที่ได้รับ", p.likes_received]].forEach(function (s) {
@@ -1823,7 +2139,7 @@
         document.getElementById("pfName").textContent = me.alias || me.username;
         document.getElementById("pfAlias").textContent = me.alias || "—";
         document.getElementById("pfRole").textContent = me.role === "admin" ? "แอดมิน / เจ้าของ" : "สมาชิก";
-        document.getElementById("pfAvatar").textContent = initial((me.alias || me.username).replace("#", ""));
+        paintAvatar(document.getElementById("pfAvatar"), me.alias, me.avatar);
 
         const aliasInput = document.getElementById("aliasInput");
         if (aliasInput && !aliasInput.dataset.wired) {
