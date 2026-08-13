@@ -163,6 +163,35 @@
                 </div>
             </section>
 
+            <!-- ===== ตรวจสอบระบบ (เฉพาะแอดมิน) ===== -->
+            <section id="view-admin" class="view" style="display:none">
+                <button class="back-btn back-to-menu">← กลับเมนู</button>
+                <h2 class="page-title">ตรวจสอบระบบ</h2>
+
+                <div id="adminSummary" class="admin-grid"></div>
+
+                <div class="write-card">
+                    <h3 class="side-title">ภาพรวมการใช้งาน</h3>
+                    <div id="adminCharts" class="admin-charts"></div>
+                </div>
+
+                <div class="write-card">
+                    <div class="admin-log-head">
+                        <h3 class="side-title">บันทึกเหตุการณ์ล่าสุด</h3>
+                        <select id="adminFilter" class="write-select">
+                            <option value="">ทุกช่วงเวลา</option>
+                            <option value="-1 hours">1 ชั่วโมงล่าสุด</option>
+                            <option value="-24 hours" selected>24 ชั่วโมงล่าสุด</option>
+                            <option value="-7 days">7 วันล่าสุด</option>
+                        </select>
+                        <button class="tool-btn" id="adminRefresh" type="button">🔄 รีเฟรช</button>
+                    </div>
+                    <div class="admin-log-wrap">
+                        <table class="admin-log" id="adminLog"></table>
+                    </div>
+                </div>
+            </section>
+
             <!-- ===== เติมเงิน (กำลังปรับปรุง) ===== -->
             <section id="view-topup" class="view" style="display:none">
                 <button class="back-btn back-to-menu">← กลับเมนู</button>
@@ -206,6 +235,11 @@
                         <span class="menu-icon">🎬</span>
                         <span class="menu-label">อัปคลิป</span>
                         <span class="menu-desc">อัปโหลดวิดีโอสั้น</span>
+                    </button>
+                    <button class="menu-card admin-only" data-goto="admin" style="display:none">
+                        <span class="menu-icon">🛡️</span>
+                        <span class="menu-label">ตรวจสอบระบบ</span>
+                        <span class="menu-desc">ดูว่าใครทำอะไรเมื่อไหร่</span>
                     </button>
                     <button class="menu-card" data-goto="topup">
                         <span class="menu-icon">💳</span>

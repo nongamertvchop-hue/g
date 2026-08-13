@@ -54,9 +54,51 @@ export default {
     },
 };
 
+// การกระทำที่ไม่ต้องบันทึก (ถี่เกินไปหรือไม่ใช่การเปลี่ยนแปลงข้อมูล)
+const AUDIT_SKIP = ["/api/heartbeat"];
+
+/**
+ * ห่อ router ไว้ชั้นหนึ่งเพื่อบันทึกทุกคำขอที่เปลี่ยนแปลงข้อมูล
+ * ทำที่จุดเดียวแบบนี้ จึงไม่มีทางลืมบันทึก endpoint ใด
+ */
 async function handleApi(request, env, url) {
     const p = url.pathname;
     const m = request.method;
+
+    if (m !== "POST" || AUDIT_SKIP.indexOf(p) >= 0) return routeApi(request, env, url, p, m);
+
+    // สำเนาคำขอไว้อ่านผู้กระทำ เพราะ handler จะใช้ body ต้นฉบับไปแล้ว
+    let clone = null;
+    try { clone = request.clone(); } catch (e) { clone = null; }
+
+    const res = await routeApi(request, env, url, p, m);
+
+    try {
+        let actor = null, detail = null;
+        if (clone) {
+            const body = await clone.json().catch(() => null);
+            if (body) {
+                if (body.token) actor = await userFromToken(env, body.token);
+                // ตอนล็อกอิน/สมัคร ยังไม่มี token จึงอ่านจากชื่อที่ส่งมา
+                if (!actor && body.username) actor = String(body.username).slice(0, 40);
+                if (body.id != null) detail = "id=" + body.id;
+                if (body.alias) detail = "alias=" + String(body.alias).slice(0, 40);
+            }
+        }
+        await logAudit(env, request, {
+            actor,
+            action: p.replace("/api/", ""),
+            targetType: "api",
+            targetId: null,
+            detail: (detail ? detail + " · " : "") + "HTTP " + res.status,
+            ok: res.status < 400,
+        });
+    } catch (e) { /* การบันทึกล้มเหลวต้องไม่กระทบผลลัพธ์ */ }
+
+    return res;
+}
+
+function routeApi(request, env, url, p, m) {
 
     // auth
     if (p === "/api/register" && m === "POST") return register(request, env);
@@ -122,6 +164,10 @@ async function handleApi(request, env, url) {
     // media (R2)
     if (p === "/api/media/status" && m === "GET") return json({ ok: true, enabled: !!env.MEDIA });
     if (p === "/api/media/upload" && m === "POST") return uploadMedia(request, env);
+
+    // ระบบตรวจสอบ/วิเคราะห์ (เฉพาะแอดมิน)
+    if (p === "/api/admin/audit" && m === "GET") return adminAudit(env, url);
+    if (p === "/api/admin/analytics" && m === "GET") return adminAnalytics(env, url);
 
     // realtime chat (WebSocket)
     if (p === "/api/ws") return handleWs(request, env, url);
@@ -519,6 +565,136 @@ async function handleWs(request, env, url) {
     doUrl.searchParams.set("user", username);
     const stub = env.CHAT.get(env.CHAT.idFromName(roomId));
     return stub.fetch(new Request(doUrl.toString(), request));
+}
+
+// ===== บันทึกการใช้งาน: ใคร ทำอะไร ที่ไหน อย่างไร เมื่อไหร่ =====
+const AUDIT_KEEP = 5000;   // เก็บรายการล่าสุดเท่านี้ กันฐานข้อมูลบวม
+
+function deviceFromUA(ua) {
+    const s = String(ua || "");
+    if (/iPad|Tablet|PlayBook|Silk/i.test(s)) return "แท็บเล็ต";
+    if (/Mobile|iPhone|Android.*Mobile|Windows Phone/i.test(s)) return "มือถือ";
+    if (/Macintosh|Windows NT|X11|Linux/i.test(s)) return "คอมพิวเตอร์";
+    if (/bot|crawler|spider|curl|wget|python/i.test(s)) return "บอท/สคริปต์";
+    return "ไม่ทราบ";
+}
+
+/**
+ * บันทึกเหตุการณ์ลง audit_log
+ * ห้ามให้ความล้มเหลวของการบันทึกไปกระทบงานหลัก จึงห่อด้วย try/catch เสมอ
+ */
+async function logAudit(env, request, opts) {
+    try {
+        const h = request && request.headers;
+        const ua = h ? (h.get("User-Agent") || "") : "";
+        const ip = h ? (h.get("CF-Connecting-IP") || null) : null;
+        const country = (request && request.cf && request.cf.country) || null;
+
+        await env.DB.prepare(
+            "INSERT INTO audit_log (actor, action, target_type, target_id, detail, ip, country, device, user_agent, ok) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).bind(
+            opts.actor || null,
+            opts.action,
+            opts.targetType || null,
+            opts.targetId != null ? String(opts.targetId) : null,
+            opts.detail ? String(opts.detail).slice(0, 300) : null,
+            ip,
+            country,
+            deviceFromUA(ua),
+            ua.slice(0, 200),
+            opts.ok === false ? 0 : 1
+        ).run();
+
+        // ตัดรายการเก่าออกเป็นระยะ (สุ่มทำ 2% ของครั้ง เพื่อไม่ให้เปลืองทุกคำขอ)
+        if (Math.random() < 0.02) {
+            await env.DB.prepare(
+                "DELETE FROM audit_log WHERE id NOT IN (SELECT id FROM audit_log ORDER BY id DESC LIMIT ?)"
+            ).bind(AUDIT_KEEP).run();
+        }
+    } catch (e) { /* เงียบไว้ ไม่ให้กระทบผู้ใช้ */ }
+}
+
+// ===== หน้าตรวจสอบสำหรับแอดมิน =====
+async function requireAdmin(env, url) {
+    const username = await userFromToken(env, url.searchParams.get("token") || "");
+    if (!username) return { error: json({ error: "unauthorized" }, 401) };
+    if (!(await isAdmin(env, username))) return { error: json({ error: "เฉพาะผู้ดูแลระบบเท่านั้น" }, 403) };
+    return { username };
+}
+
+async function adminAudit(env, url) {
+    const auth = await requireAdmin(env, url);
+    if (auth.error) return auth.error;
+
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "100", 10) || 100, 500);
+    const actor = (url.searchParams.get("actor") || "").trim();
+    const action = (url.searchParams.get("action") || "").trim();
+    const since = (url.searchParams.get("since") || "").trim();   // เช่น "-7 days"
+
+    let sql = "SELECT id, actor, action, target_type, target_id, detail, ip, country, device, ok, created_at " +
+              "FROM audit_log WHERE 1=1";
+    const binds = [];
+    if (actor) { sql += " AND actor = ?"; binds.push(actor); }
+    if (action) { sql += " AND action = ?"; binds.push(action); }
+    if (/^-\d+ (hours|days)$/.test(since)) sql += " AND created_at > datetime('now', '" + since + "')";
+    sql += " ORDER BY id DESC LIMIT ?";
+    binds.push(limit);
+
+    const { results } = await env.DB.prepare(sql).bind(...binds).all();
+
+    // แปลงชื่อผู้ใช้เป็นนามแฝงไว้ให้ด้วย แต่แอดมินเห็นทั้งคู่
+    const map = await aliasMap(env, (results || []).map((r) => r.actor));
+    const rows = (results || []).map((r) => ({ ...r, actor_alias: r.actor ? (map[r.actor] || r.actor) : null }));
+
+    return json({ ok: true, events: rows });
+}
+
+async function adminAnalytics(env, url) {
+    const auth = await requireAdmin(env, url);
+    if (auth.error) return auth.error;
+
+    const q = (sql) => env.DB.prepare(sql).all();
+    const one = (sql) => env.DB.prepare(sql).first();
+
+    const [totals, byAction, byDevice, byCountry, byHour, topActors, failures, daily] = await Promise.all([
+        one(
+            "SELECT (SELECT COUNT(*) FROM audit_log) AS events, " +
+            "(SELECT COUNT(*) FROM audit_log WHERE created_at > datetime('now','-24 hours')) AS events_24h, " +
+            "(SELECT COUNT(DISTINCT actor) FROM audit_log WHERE actor IS NOT NULL AND created_at > datetime('now','-24 hours')) AS active_users_24h, " +
+            "(SELECT COUNT(*) FROM users) AS users, " +
+            "(SELECT COUNT(*) FROM posts) AS posts, " +
+            "(SELECT COUNT(*) FROM novels) AS novels, " +
+            "(SELECT COUNT(*) FROM global_messages) AS global_messages"
+        ),
+        q("SELECT action, COUNT(*) AS n FROM audit_log GROUP BY action ORDER BY n DESC LIMIT 15"),
+        q("SELECT COALESCE(device,'ไม่ทราบ') AS device, COUNT(*) AS n FROM audit_log GROUP BY device ORDER BY n DESC"),
+        q("SELECT COALESCE(country,'??') AS country, COUNT(*) AS n FROM audit_log GROUP BY country ORDER BY n DESC LIMIT 10"),
+        q("SELECT strftime('%H', created_at) AS hour, COUNT(*) AS n FROM audit_log " +
+          "WHERE created_at > datetime('now','-7 days') GROUP BY hour ORDER BY hour"),
+        q("SELECT actor, COUNT(*) AS n, MAX(created_at) AS last_seen FROM audit_log " +
+          "WHERE actor IS NOT NULL GROUP BY actor ORDER BY n DESC LIMIT 10"),
+        q("SELECT action, COUNT(*) AS n FROM audit_log WHERE ok = 0 GROUP BY action ORDER BY n DESC LIMIT 10"),
+        q("SELECT date(created_at) AS day, COUNT(*) AS n FROM audit_log " +
+          "WHERE created_at > datetime('now','-14 days') GROUP BY day ORDER BY day"),
+    ]);
+
+    const map = await aliasMap(env, ((topActors && topActors.results) || []).map((r) => r.actor));
+
+    return json({
+        ok: true,
+        generated_at: new Date().toISOString(),
+        totals: totals || {},
+        by_action: (byAction && byAction.results) || [],
+        by_device: (byDevice && byDevice.results) || [],
+        by_country: (byCountry && byCountry.results) || [],
+        by_hour: (byHour && byHour.results) || [],
+        daily: (daily && daily.results) || [],
+        failures: (failures && failures.results) || [],
+        top_actors: (((topActors && topActors.results) || []).map((r) => ({
+            ...r, alias: map[r.actor] || r.actor,
+        }))),
+    });
 }
 
 // ===== นามแฝง (ซ่อนชื่อผู้ใช้จริงจากทุกคน ยกเว้นแอดมิน) =====

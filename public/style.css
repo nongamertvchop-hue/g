@@ -1617,6 +1617,65 @@ body::after {
     .my-panel { right: -40px; }
 }
 
+/* ===== หน้าตรวจสอบระบบ (แอดมิน) ===== */
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+}
+
+.admin-stat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.admin-stat-icon { font-size: 22px; }
+.admin-stat-value { display: block; font-family: var(--font-serif); font-size: 26px; color: var(--gold-soft); line-height: 1.1; }
+.admin-stat-label { display: block; font-size: 11.5px; color: var(--ink-faint); }
+
+.admin-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+.admin-chart { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.admin-chart-title { font-size: 13.5px; color: var(--ink); font-weight: 600; margin-bottom: 3px; }
+.admin-chart-empty { font-size: 12px; color: var(--ink-faint); }
+
+.admin-bar-row { display: flex; align-items: center; gap: 9px; font-size: 12px; }
+.admin-bar-label {
+    width: 96px; flex-shrink: 0; color: var(--ink-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.admin-bar-track { flex: 1; height: 9px; background: rgba(10, 10, 15, 0.6); border-radius: 5px; overflow: hidden; }
+.admin-bar-fill {
+    height: 100%; border-radius: 5px;
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold-soft));
+    transition: width 0.5s ease;
+}
+.admin-bar-value { width: 40px; text-align: right; color: var(--gold-soft); flex-shrink: 0; }
+
+.admin-log-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.admin-log-head .side-title { margin: 0; border: none; padding: 0; flex: 1; }
+.admin-log-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+
+.admin-log { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 620px; }
+.admin-log th {
+    text-align: left; padding: 10px 12px; color: var(--gold-soft);
+    background: rgba(201, 162, 75, 0.07); border-bottom: 1px solid var(--line);
+    font-weight: 600; white-space: nowrap;
+}
+.admin-log td { padding: 9px 12px; border-bottom: 1px solid rgba(36, 31, 46, 0.6); color: var(--ink-dim); vertical-align: top; }
+.admin-log tr:last-child td { border-bottom: none; }
+.admin-log tr.failed td { background: rgba(126, 31, 43, 0.1); }
+
+.log-time { white-space: nowrap; color: var(--ink-faint); }
+.log-alias { display: block; color: var(--ink); }
+.log-real { display: block; font-size: 10.5px; color: var(--ink-faint); }
+.log-action { color: var(--ink); white-space: nowrap; }
+.log-detail, .log-where { font-size: 11.5px; }
+
 /* ===== แชทโลก ===== */
 .global-card {
     background: linear-gradient(160deg, rgba(24, 20, 34, 0.9), rgba(14, 12, 20, 0.9));

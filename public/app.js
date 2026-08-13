@@ -202,6 +202,7 @@
         setupGlobal();
         setupMyPanel();
         setupAvatarUpload();
+        setupAdmin();
         startHeartbeat();
         setupWrite();
         setupChatControls();
@@ -212,7 +213,7 @@
 
     // ---------- view router ----------
     const featureViews = ["feed", "global", "live", "videos", "menu",
-        "novels", "chat", "write", "profile", "clips", "topup", "aria"];
+        "novels", "chat", "write", "profile", "clips", "topup", "admin", "aria"];
 
     function showView(name) {
         featureViews.forEach(function (v) {
@@ -247,6 +248,7 @@
         if (name === "aria") loadAriaHistory();
         if (name === "global") { loadGlobal(true); startGlobalPoll(); }
         if (name === "videos") loadVideos();
+        if (name === "admin") loadAdmin();
     }
 
     function setupTabs() {
@@ -603,6 +605,147 @@
             return;
         }
         feedPosts.forEach(p => list.appendChild(renderPost(p)));
+    }
+
+    // ---------- หน้าตรวจสอบระบบ (แอดมิน) ----------
+    const ACTION_LABEL = {
+        "login": "เข้าสู่ระบบ", "logout": "ออกจากระบบ", "register": "สมัครสมาชิก",
+        "posts": "สร้างโพสต์", "posts/update": "แก้ไขโพสต์", "posts/delete": "ลบโพสต์",
+        "posts/like": "กดถูกใจ", "posts/share": "แชร์โพสต์",
+        "comments": "คอมเมนต์", "comments/delete": "ลบคอมเมนต์",
+        "novels/create": "สร้างนิยาย", "novels/delete": "ลบนิยาย", "chapters/create": "ลงตอนใหม่",
+        "novels/follow": "ติดตามนิยาย", "read": "อ่านนิยาย",
+        "global": "ส่งข้อความแชทโลก", "messages": "ส่งข้อความส่วนตัว",
+        "friends/add": "เพิ่มเพื่อน", "alias": "เปลี่ยนนามแฝง", "avatar": "เปลี่ยนรูปโปรไฟล์",
+        "media/upload": "อัปโหลดไฟล์", "aria": "คุยกับอาเรีย",
+        "notifications/announce": "ส่งประกาศ", "notifications/read": "อ่านแจ้งเตือน",
+        "notifications/read-all": "อ่านแจ้งเตือนทั้งหมด",
+    };
+    const actionLabel = (a) => ACTION_LABEL[a] || a;
+
+    function statCard(icon, label, value) {
+        const c = el("div", "admin-stat");
+        c.appendChild(el("span", "admin-stat-icon", icon));
+        const t = el("div");
+        t.appendChild(el("span", "admin-stat-value", String(value)));
+        t.appendChild(el("span", "admin-stat-label", label));
+        c.appendChild(t);
+        return c;
+    }
+
+    function barChart(title, rows, labelKey, valueKey, mapLabel) {
+        const box = el("div", "admin-chart");
+        box.appendChild(el("h4", "admin-chart-title", title));
+        const max = Math.max(1, ...rows.map(r => Number(r[valueKey]) || 0));
+        if (!rows.length) {
+            box.appendChild(el("div", "admin-chart-empty", "ยังไม่มีข้อมูล"));
+            return box;
+        }
+        rows.forEach(function (r) {
+            const line = el("div", "admin-bar-row");
+            const name = mapLabel ? mapLabel(r[labelKey]) : String(r[labelKey]);
+            line.appendChild(el("span", "admin-bar-label", name));
+            const track = el("div", "admin-bar-track");
+            const fill = el("div", "admin-bar-fill");
+            fill.style.width = Math.round((Number(r[valueKey]) / max) * 100) + "%";
+            track.appendChild(fill);
+            line.appendChild(track);
+            line.appendChild(el("span", "admin-bar-value", String(r[valueKey])));
+            box.appendChild(line);
+        });
+        return box;
+    }
+
+    async function loadAdmin() {
+        if (me.role !== "admin") { toast("เฉพาะผู้ดูแลระบบเท่านั้น", true); showView("menu"); return; }
+
+        const summary = document.getElementById("adminSummary");
+        const charts = document.getElementById("adminCharts");
+        summary.innerHTML = '<div class="feed-loading">กำลังวิเคราะห์...</div>';
+        charts.innerHTML = "";
+
+        const res = await api("/api/admin/analytics?token=" + encodeURIComponent(token));
+        if (!res.ok || !res.data.ok) {
+            summary.innerHTML = '<div class="feed-loading">โหลดข้อมูลไม่สำเร็จ</div>';
+            return;
+        }
+        const d = res.data;
+        const t = d.totals || {};
+
+        summary.innerHTML = "";
+        summary.appendChild(statCard("⚡", "เหตุการณ์ 24 ชม.", t.events_24h || 0));
+        summary.appendChild(statCard("👥", "ผู้ใช้ที่ใช้งาน 24 ชม.", t.active_users_24h || 0));
+        summary.appendChild(statCard("📊", "เหตุการณ์ทั้งหมด", t.events || 0));
+        summary.appendChild(statCard("🧑", "สมาชิก", t.users || 0));
+        summary.appendChild(statCard("📝", "โพสต์", t.posts || 0));
+        summary.appendChild(statCard("📚", "นิยาย", t.novels || 0));
+
+        charts.appendChild(barChart("การกระทำที่พบบ่อย", d.by_action || [], "action", "n", actionLabel));
+        charts.appendChild(barChart("อุปกรณ์ที่ใช้", d.by_device || [], "device", "n"));
+        charts.appendChild(barChart("ประเทศ", d.by_country || [], "country", "n"));
+        charts.appendChild(barChart("ผู้ใช้ที่มีกิจกรรมมากสุด", (d.top_actors || []), "alias", "n"));
+        charts.appendChild(barChart("ช่วงเวลาที่คนใช้งาน (7 วัน)", (d.by_hour || []), "hour", "n", h => h + ":00"));
+        charts.appendChild(barChart("กิจกรรมรายวัน (14 วัน)", (d.daily || []), "day", "n"));
+        if ((d.failures || []).length) {
+            charts.appendChild(barChart("⚠️ การกระทำที่ล้มเหลว", d.failures, "action", "n", actionLabel));
+        }
+
+        loadAuditLog();
+    }
+
+    async function loadAuditLog() {
+        const table = document.getElementById("adminLog");
+        const since = document.getElementById("adminFilter").value;
+        table.innerHTML = '<tr><td class="feed-loading">กำลังโหลด...</td></tr>';
+
+        const res = await api("/api/admin/audit?token=" + encodeURIComponent(token) +
+            "&limit=150" + (since ? "&since=" + encodeURIComponent(since) : ""));
+        if (!res.ok || !res.data.ok) {
+            table.innerHTML = '<tr><td class="feed-loading">โหลดไม่สำเร็จ</td></tr>';
+            return;
+        }
+        const rows = res.data.events || [];
+        table.innerHTML = "";
+
+        const head = document.createElement("tr");
+        ["เมื่อไหร่", "ใคร", "ทำอะไร", "อย่างไร", "ที่ไหน"].forEach(function (h) {
+            head.appendChild(el("th", null, h));
+        });
+        table.appendChild(head);
+
+        if (!rows.length) {
+            const tr = document.createElement("tr");
+            const td = el("td", "feed-loading", "ไม่มีเหตุการณ์ในช่วงเวลานี้");
+            td.colSpan = 5;
+            tr.appendChild(td);
+            table.appendChild(tr);
+            return;
+        }
+
+        rows.forEach(function (r) {
+            const tr = document.createElement("tr");
+            if (!r.ok) tr.className = "failed";
+            tr.appendChild(el("td", "log-time", fmtDateTime(r.created_at)));
+            const who = el("td");
+            who.appendChild(el("span", "log-alias", r.actor_alias || "ผู้ไม่ระบุตัวตน"));
+            if (r.actor && r.actor !== r.actor_alias) who.appendChild(el("span", "log-real", r.actor));
+            tr.appendChild(who);
+            tr.appendChild(el("td", "log-action", actionLabel(r.action) + (r.ok ? "" : " ❌")));
+            tr.appendChild(el("td", "log-detail", [r.device, r.detail].filter(Boolean).join(" · ")));
+            tr.appendChild(el("td", "log-where", [r.country, r.ip].filter(Boolean).join(" · ")));
+            table.appendChild(tr);
+        });
+    }
+
+    function setupAdmin() {
+        const refresh = document.getElementById("adminRefresh");
+        const filter = document.getElementById("adminFilter");
+        if (refresh) refresh.addEventListener("click", loadAdmin);
+        if (filter) filter.addEventListener("change", loadAuditLog);
+        // การ์ดเมนูสำหรับแอดมินเท่านั้น
+        if (me.role === "admin") {
+            document.querySelectorAll(".menu-card.admin-only").forEach(c => { c.style.display = ""; });
+        }
     }
 
     // ---------- แท็บวิดีโอ ----------
