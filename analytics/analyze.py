@@ -18,6 +18,7 @@ import json
 import statistics
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -262,6 +263,9 @@ def report(a, site):
 
 # ---------------------------------------------------------------------- main
 def main():
+    # ต้องประกาศ global ก่อนใช้ชื่อนี้ในฟังก์ชัน ไม่งั้น Python จะฟ้อง SyntaxError
+    global BASE_URL
+
     ap = argparse.ArgumentParser(description="วิเคราะห์การใช้งานเว็บเรือนอักษร")
     ap.add_argument("--user", required=True, help="ชื่อผู้ใช้แอดมิน")
     ap.add_argument("--password", help="รหัสผ่าน (เว้นไว้เพื่อพิมพ์แบบซ่อน)")
@@ -270,8 +274,6 @@ def main():
     ap.add_argument("--json", help="บันทึกผลเป็นไฟล์ JSON")
     ap.add_argument("--url", default=BASE_URL, help="ที่อยู่เว็บ")
     args = ap.parse_args()
-
-    global BASE_URL
     BASE_URL = args.url.rstrip("/")
 
     password = args.password or getpass.getpass("รหัสผ่าน: ")
@@ -301,7 +303,6 @@ def main():
 
 if __name__ == "__main__":
     try:
-        import urllib.parse  # noqa: F401  (ใช้ใน call())
         main()
     except KeyboardInterrupt:
         sys.exit("\nยกเลิกแล้ว")
